@@ -1,121 +1,86 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useEffect } from 'react';
+import { useStore } from './store/useStore';
+import type { TabId } from './types';
+import MapPage from './pages/MapPage';
+import ComparePage from './pages/ComparePage';
+import IndividualPage from './pages/IndividualPage';
+import OptimizerPage from './pages/OptimizerPage';
 
-function App() {
-  const [count, setCount] = useState(0)
+const TABS: { id: TabId; label: string; icon: string; navIcon: string }[] = [
+  { id: 'map', label: 'Intervention Map', icon: '🗺️', navIcon: '🗺️' },
+  { id: 'compare', label: 'Compare Scenarios', icon: '⚖️', navIcon: '⚖️' },
+  { id: 'individual', label: 'Individual Impact', icon: '👤', navIcon: '👤' },
+  { id: 'optimizer', label: 'Budget Optimizer', icon: '📈', navIcon: '📈' },
+];
+
+export default function App() {
+  const { activeTab, setActiveTab, setCounties, setInterventions } = useStore();
+
+  // Load static data on mount
+  useEffect(() => {
+    fetch('/data/counties_health.json')
+      .then(r => r.json())
+      .then(data => setCounties(data))
+      .catch(console.error);
+
+    fetch('/data/interventions.json')
+      .then(r => r.json())
+      .then(data => setInterventions(data))
+      .catch(console.error);
+  }, [setCounties, setInterventions]);
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div className="app-shell">
+      {/* Header */}
+      <header className="app-header">
+        <a className="logo" href="#">
+          <div className="logo-icon">💉</div>
+          <span>
+            Pulse<span className="text-gradient">Policy</span>
+          </span>
+        </a>
 
-      <div className="ticks"></div>
+        <nav className="header-tabs">
+          {TABS.map(tab => (
+            <button
+              key={tab.id}
+              id={`tab-${tab.id}`}
+              className={`header-tab${activeTab === tab.id ? ' active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              <span>{tab.icon}</span>
+              {tab.label}
+            </button>
+          ))}
+        </nav>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+        <div className="header-right">
+          <div className="status-badge">
+            <div className="status-dot" />
+            <span>3,142 counties loaded</span>
+          </div>
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+      </header>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+      {/* Side Nav */}
+      <nav className="side-nav">
+        {TABS.map(tab => (
+          <button
+            key={tab.id}
+            className={`nav-icon-btn${activeTab === tab.id ? ' active' : ''}`}
+            onClick={() => setActiveTab(tab.id)}
+            title={tab.label}
+          >
+            {tab.navIcon}
+          </button>
+        ))}
+      </nav>
+
+      {/* Page Content */}
+      {activeTab === 'map' && <MapPage />}
+      {activeTab === 'compare' && <ComparePage />}
+      {activeTab === 'individual' && <IndividualPage />}
+      {activeTab === 'optimizer' && <OptimizerPage />}
+    </div>
+  );
 }
-
-export default App

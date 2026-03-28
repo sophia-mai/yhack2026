@@ -62,18 +62,30 @@ export interface Intervention {
 
 let _interventions: Intervention[] | null = null;
 
+function resolveDataPath(filename: string): string {
+  // Try multiple locations to handle different cwd contexts
+  const candidates = [
+    path.resolve(process.cwd(), 'frontend/public/data', filename),
+    path.resolve(process.cwd(), '../frontend/public/data', filename),
+    path.resolve(__dirname, '../../../frontend/public/data', filename),
+    path.resolve(__dirname, '../../frontend/public/data', filename),
+  ];
+  for (const p of candidates) {
+    try { readFileSync(p); return p; } catch { /* try next */ }
+  }
+  throw new Error(`Cannot find data file: ${filename}. Checked: ${candidates.join(', ')}`);
+}
+
 export function getCountyData(): CountyRecord[] {
   if (!_countyData) {
-    const dataPath = path.resolve(__dirname, '../../frontend/public/data/counties_health.json');
-    _countyData = JSON.parse(readFileSync(dataPath, 'utf-8'));
+    _countyData = JSON.parse(readFileSync(resolveDataPath('counties_health.json'), 'utf-8'));
   }
   return _countyData!;
 }
 
 export function getInterventions(): Intervention[] {
   if (!_interventions) {
-    const dataPath = path.resolve(__dirname, '../../frontend/public/data/interventions.json');
-    _interventions = JSON.parse(readFileSync(dataPath, 'utf-8'));
+    _interventions = JSON.parse(readFileSync(resolveDataPath('interventions.json'), 'utf-8'));
   }
   return _interventions!;
 }
