@@ -1,4 +1,3 @@
-import USMap from '../components/Map/USMap';
 import InterventionPanel from '../components/Interventions/InterventionPanel';
 import SimulationControls from '../components/Simulation/SimulationControls';
 import ResultsPanel from '../components/Simulation/ResultsPanel';
@@ -6,7 +5,7 @@ import AIPanel from '../components/AI/AIPanel';
 
 export default function MapPage() {
   return (
-    <>
+    <div className="map-page-overlays">
       {/* Left panel: intervention builder */}
       <div className="left-panel">
         <InterventionPanel />
@@ -14,9 +13,6 @@ export default function MapPage() {
           <SimulationControls />
         </div>
       </div>
-
-      {/* Center: map */}
-      <USMap />
 
       {/* Right panel: results + AI */}
       <div className="right-panel">
@@ -29,6 +25,6 @@ export default function MapPage() {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

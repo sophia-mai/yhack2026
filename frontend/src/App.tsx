@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useStore } from './store/useStore';
 import type { TabId } from './types';
+import USMap from './components/Map/USMap';
 import MapPage from './pages/MapPage';
 import ComparePage from './pages/ComparePage';
 import IndividualPage from './pages/IndividualPage';
@@ -76,7 +77,12 @@ export default function App() {
         ))}
       </nav>
 
-      {/* Page Content */}
+        {/* Global Background Map */}
+        <div className={`global-map-layer ${activeTab !== 'map' ? 'map-dimmed' : ''}`}>
+          <USMap />
+        </div>
+
+      {/* Page Content Layers */}
       {activeTab === 'map' && <MapPage />}
       {activeTab === 'compare' && <ComparePage />}
       {activeTab === 'individual' && <IndividualPage />}
