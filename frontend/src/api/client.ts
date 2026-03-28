@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:3001/api';
+const API_BASE = '/api';
 
 export async function fetchCounties(params?: { state?: string; fips?: string }) {
   const query = new URLSearchParams(params as Record<string, string>).toString();
