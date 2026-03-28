@@ -163,46 +163,19 @@ router.post('/patient-timeline', async (req, res) => {
     const currentYear = new Date().getFullYear();
     const birthYear = currentYear - (profile.age || 40);
 
-    const systemPrompt = `You are a clinical AI assistant and public health expert embedded in Prophis, a preventive health platform. Your job is to analyze a patient's medical history and demographic data, then construct a realistic chronological health timeline. You must return ONLY valid JSON — no prose, no explanation, no markdown. The JSON must be an array of timeline event objects.
-
-Each event object must have these exact fields:
-- "age": number (patient age when event occurred or is predicted)
-- "year": number (calendar year)
-- "type": one of "past" | "present" | "predicted" | "intervention" | "warning"
-- "title": string (short event title, max 8 words)
-- "description": string (1-2 sentence clinical description)
-- "severity": one of "low" | "medium" | "high" | "critical"
-- "category": one of "diagnosis" | "lifestyle" | "medication" | "screening" | "procedure" | "risk_factor" | "intervention" | "outcome"
-- "avoided": boolean (true only when an intervention prevents a previously predicted bad outcome)
-
-Rules:
-- Past events: derive from the medical history provided. Be specific with ages/years.
-- Present event: exactly ONE event with type "present" at the patient's current age.
-- Predicted future: project 15 years forward. Include realistic disease progressions, complications, and mortality risk based on the patient's specific risk factors.
-- If interventions are provided, re-project the future showing improved outcomes. Mark prevented events as type "predicted" with avoided=true.
-- Always include 3-5 past events, 1 present, and 5-8 future predictions.
-- Order all events by age ascending.`;
+    const systemPrompt = `You are a clinical AI. Return ONLY a valid JSON array of health timeline events — no prose, no markdown fences. Each object must have: age (number), year (number), type ("past"|"present"|"predicted"|"warning"), title (string, max 7 words), description (string, 1 sentence), severity ("low"|"medium"|"high"|"critical"), category ("diagnosis"|"lifestyle"|"medication"|"screening"|"risk_factor"|"intervention"|"outcome"), avoided (boolean). Rules: include 2-4 past events, exactly 1 present, and 3-5 future predictions ordered by age ascending. If interventions are provided, mark prevented bad outcomes as avoided=true.`;
 
     const interventionNote = interventions?.length
       ? `\n\nThe following preventive interventions have now been APPLIED to this patient. Re-project the future accordingly, showing improved outcomes and marking any previously bad predictions as avoided:\n${interventions.map((i: Record<string, string>) => `- ${i.name}: ${i.description}`).join('\n')}`
       : '';
 
-    const userPrompt = `Patient Profile:
-- Name: ${profile.name || 'Patient'}
-- Age: ${profile.age} years old (born ~${birthYear})
-- Sex: ${profile.sex}
-- Height: ${profile.height || 'not provided'}
-- Weight: ${profile.weight || 'not provided'}
-- BMI: ${profile.bmi || 'not provided'}
-- Ethnicity: ${profile.ethnicity || 'not provided'}
-- Smoking Status: ${profile.smoker ? 'Current smoker' : 'Non-smoker'}
-- Family History: ${profile.familyHistory || 'None reported'}
+    const userPrompt = `Patient: ${profile.name || 'Patient'}, Age ${profile.age}, ${profile.sex}, BMI ${profile.bmi || 'unknown'}, Ethnicity: ${profile.ethnicity || 'not stated'}, Smoker: ${profile.smoker ? 'Yes' : 'No'}, Family Hx: ${profile.familyHistory || 'none'}.
 
-Medical History (from uploaded records or patient entry):
-${medicalHistory || 'No medical history provided. Generate a realistic timeline based on demographics and risk factors.'}
+Medical History:
+${(medicalHistory || 'No history provided — infer realistic events from demographics.').slice(0, 800)}
 ${interventionNote}
 
-Generate the timeline JSON array now.`;
+Return JSON array only.`;
 
     const claudeRes = await fetch(LAVA_FORWARD_URL, {
       method: 'POST',
@@ -214,7 +187,7 @@ Generate the timeline JSON array now.`;
       },
       body: JSON.stringify({
         model: CLAUDE_MODEL,
-        max_tokens: 2048,
+        max_tokens: 1400,
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }],
       }),
@@ -235,7 +208,22 @@ Generate the timeline JSON array now.`;
     try {
       timeline = JSON.parse(cleaned);
     } catch {
-      return res.status(500).json({ error: 'Failed to parse Claude timeline response', raw: rawText });
+      // Partial recovery: Claude was cut off mid-JSON — salvage complete objects
+      // Find the last complete event closing brace before the truncation
+      const lastComplete = cleaned.lastIndexOf('},');
+      const lastCompleteAlt = cleaned.lastIndexOf('}\n]');
+      const cutAt = Math.max(lastComplete, lastCompleteAlt);
+      if (cutAt !== -1) {
+        try {
+          const recovered = cleaned.slice(0, cutAt + 1) + '\n]';
+          timeline = JSON.parse(recovered);
+          console.warn(`patient-timeline: JSON was truncated, recovered ${(timeline as unknown[]).length} events`);
+        } catch {
+          return res.status(500).json({ error: 'Failed to parse Claude timeline response', raw: rawText });
+        }
+      } else {
+        return res.status(500).json({ error: 'Failed to parse Claude timeline response', raw: rawText });
+      }
     }
 
     return res.json({ timeline });
