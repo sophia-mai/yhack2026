@@ -36,31 +36,26 @@ export default function App() {
       <div className="app-shell">
       {/* Header */}
       <header className="app-header">
-        <a className="logo" href="#" style={{ letterSpacing: '-0.02em', fontSize: 20 }}>
-          <div className="logo-icon" style={{ boxShadow: '0 0 24px rgba(0,212,170,0.4)', fontSize: 18 }}>✨</div>
-          <span style={{ fontWeight: 800 }}>
-            PR<span className="text-gradient">OPHIS</span>
-          </span>
-        </a>
+        <div className="header-left">
+          <a className="logo" href="#" style={{ letterSpacing: '-0.02em', fontSize: 20 }}>
+            <div className="logo-icon" style={{ boxShadow: '0 0 24px rgba(0,212,170,0.4)', fontSize: 18 }}>✨</div>
+            <span style={{ fontWeight: 800 }}>
+              PR<span className="text-gradient">OPHIS</span>
+            </span>
+          </a>
+          <div className="header-divider" />
+          <div className="header-breadcrumb">
+            <span className="breadcrumb-icon">{TABS.find(t => t.id === activeTab)?.icon}</span>
+            {TABS.find(t => t.id === activeTab)?.label}
+          </div>
+        </div>
 
-        <nav className="header-tabs">
-          {TABS.map(tab => (
-            <button
-              key={tab.id}
-              id={`tab-${tab.id}`}
-              className={`header-tab${activeTab === tab.id ? ' active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              <span>{tab.icon}</span>
-              {tab.label}
-            </button>
-          ))}
-        </nav>
+
 
         <div className="header-right">
           <div className="status-badge">
             <div className="status-dot" />
-            <span>3,142 counties loaded</span>
+            <span>3,142 counties</span>
           </div>
         </div>
       </header>
