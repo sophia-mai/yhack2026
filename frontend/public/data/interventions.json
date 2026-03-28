@@ -1,0 +1,353 @@
+[
+  {
+    "id": "preventive_screenings",
+    "name": "Preventive Screenings",
+    "category": "Preventive Care",
+    "icon": "🩺",
+    "description": "Fund community-based screenings for diabetes, hypertension, and cancer at primary care clinics and mobile units.",
+    "costPerCapita": 42,
+    "effects": {
+      "diabetes": -0.8,
+      "heartDisease": -0.5,
+      "checkups": 3.2,
+      "mentalHealth": -0.2
+    },
+    "targetableBy": ["low_income", "elderly", "uninsured", "minority"],
+    "timeHorizon": "medium",
+    "evidenceLevel": "strong",
+    "qalyWeight": 0.4
+  },
+  {
+    "id": "smoking_cessation",
+    "name": "Smoking Cessation Programs",
+    "category": "Behavioral",
+    "icon": "🚭",
+    "description": "Evidence-based quit-smoking programs including counseling, NRT, pharmacotherapy, and quitline access.",
+    "costPerCapita": 58,
+    "effects": {
+      "smoking": -2.8,
+      "copd": -1.2,
+      "heartDisease": -0.8,
+      "mentalHealth": -0.6
+    },
+    "targetableBy": ["low_income", "rural", "minority"],
+    "timeHorizon": "medium",
+    "evidenceLevel": "strong",
+    "qalyWeight": 0.6
+  },
+  {
+    "id": "physical_activity",
+    "name": "Community Physical Activity",
+    "category": "Behavioral",
+    "icon": "🏃",
+    "description": "Build or upgrade parks, trails, recreation centers; fund fitness programs and walk-to-school initiatives.",
+    "costPerCapita": 38,
+    "effects": {
+      "physicalInactivity": -3.4,
+      "obesity": -1.8,
+      "diabetes": -0.6,
+      "mentalHealth": -1.2,
+      "heartDisease": -0.4
+    },
+    "targetableBy": ["elderly", "low_income", "rural"],
+    "timeHorizon": "long",
+    "evidenceLevel": "strong",
+    "qalyWeight": 0.5
+  },
+  {
+    "id": "nutrition_programs",
+    "name": "Nutrition & Food Access",
+    "category": "Environmental",
+    "icon": "🥗",
+    "description": "Expand food assistance, community gardens, healthy food market incentives, and nutrition education.",
+    "costPerCapita": 52,
+    "effects": {
+      "obesity": -2.2,
+      "diabetes": -1.0,
+      "heartDisease": -0.6,
+      "physicalInactivity": -0.4
+    },
+    "targetableBy": ["low_income", "minority", "elderly"],
+    "timeHorizon": "medium",
+    "evidenceLevel": "strong",
+    "qalyWeight": 0.45
+  },
+  {
+    "id": "mental_health_access",
+    "name": "Mental Health Services",
+    "category": "Access",
+    "icon": "🧠",
+    "description": "Expand telehealth, community mental health centers, crisis lines, and integrated behavioral health in primary care.",
+    "costPerCapita": 68,
+    "effects": {
+      "mentalHealth": -3.8,
+      "smoking": -0.4,
+      "physicalInactivity": -1.0,
+      "checkups": 1.2
+    },
+    "targetableBy": ["low_income", "rural", "uninsured", "minority"],
+    "timeHorizon": "short",
+    "evidenceLevel": "strong",
+    "qalyWeight": 0.7
+  },
+  {
+    "id": "air_quality",
+    "name": "Air Quality Improvement",
+    "category": "Environmental",
+    "icon": "🌬️",
+    "description": "Industrial emission controls, clean energy incentives, traffic management, and indoor air quality programs.",
+    "costPerCapita": 84,
+    "effects": {
+      "copd": -1.4,
+      "heartDisease": -0.6,
+      "mentalHealth": -0.4
+    },
+    "targetableBy": ["minority", "low_income", "elderly"],
+    "timeHorizon": "long",
+    "evidenceLevel": "moderate",
+    "qalyWeight": 0.55
+  },
+  {
+    "id": "insurance_expansion",
+    "name": "Insurance Coverage Expansion",
+    "category": "Access",
+    "icon": "📋",
+    "description": "Outreach, enrollment assistance, premium subsidies, and Medicaid expansion to reduce uninsured rates.",
+    "costPerCapita": 120,
+    "effects": {
+      "checkups": 5.8,
+      "diabetes": -0.8,
+      "heartDisease": -0.6,
+      "mentalHealth": -0.8
+    },
+    "targetableBy": ["uninsured", "low_income", "minority"],
+    "timeHorizon": "short",
+    "evidenceLevel": "strong",
+    "qalyWeight": 0.65
+  },
+  {
+    "id": "diabetes_management",
+    "name": "Diabetes Management",
+    "category": "Preventive Care",
+    "icon": "💉",
+    "description": "Self-management education, glucometer access, medication assistance, and continuous glucose monitoring programs.",
+    "costPerCapita": 88,
+    "effects": {
+      "diabetes": -2.4,
+      "heartDisease": -0.8,
+      "checkups": 2.4,
+      "mentalHealth": -0.4
+    },
+    "targetableBy": ["elderly", "low_income", "minority"],
+    "timeHorizon": "medium",
+    "evidenceLevel": "strong",
+    "qalyWeight": 0.6
+  },
+  {
+    "id": "maternal_child_health",
+    "name": "Maternal & Child Health",
+    "category": "Preventive Care",
+    "icon": "👶",
+    "description": "Prenatal care, WIC expansion, home visiting programs, and pediatric screenings in underserved areas.",
+    "costPerCapita": 74,
+    "effects": {
+      "mentalHealth": -1.0,
+      "checkups": 3.8,
+      "obesity": -0.8
+    },
+    "targetableBy": ["low_income", "minority", "uninsured"],
+    "timeHorizon": "long",
+    "evidenceLevel": "strong",
+    "qalyWeight": 0.5
+  },
+  {
+    "id": "substance_use",
+    "name": "Substance Use Treatment",
+    "category": "Behavioral",
+    "icon": "💊",
+    "description": "Opioid treatment programs, naloxone distribution, harm reduction services, and recovery support.",
+    "costPerCapita": 92,
+    "effects": {
+      "mentalHealth": -2.2,
+      "smoking": -0.6,
+      "heartDisease": -0.4
+    },
+    "targetableBy": ["rural", "low_income", "uninsured"],
+    "timeHorizon": "short",
+    "evidenceLevel": "strong",
+    "qalyWeight": 0.65
+  },
+  {
+    "id": "telehealth",
+    "name": "Telehealth Expansion",
+    "category": "Access",
+    "icon": "📱",
+    "description": "Broadband subsidies, device lending, digital literacy training, and telehealth platform grants for rural areas.",
+    "costPerCapita": 48,
+    "effects": {
+      "checkups": 4.2,
+      "mentalHealth": -1.4,
+      "diabetes": -0.4
+    },
+    "targetableBy": ["rural", "elderly", "uninsured"],
+    "timeHorizon": "short",
+    "evidenceLevel": "moderate",
+    "qalyWeight": 0.4
+  },
+  {
+    "id": "lead_remediation",
+    "name": "Lead & Toxin Remediation",
+    "category": "Environmental",
+    "icon": "🏚️",
+    "description": "Lead paint testing and removal, water pipe replacement, and indoor environmental hazard assessments.",
+    "costPerCapita": 110,
+    "effects": {
+      "mentalHealth": -1.8,
+      "heartDisease": -0.4
+    },
+    "targetableBy": ["minority", "low_income"],
+    "timeHorizon": "long",
+    "evidenceLevel": "strong",
+    "qalyWeight": 0.5
+  },
+  {
+    "id": "vaccine_programs",
+    "name": "Vaccination Campaigns",
+    "category": "Preventive Care",
+    "icon": "💉",
+    "description": "Mobile clinics, community outreach, and incentives to boost flu, pneumonia, COVID, and HPV vaccination rates.",
+    "costPerCapita": 32,
+    "effects": {
+      "checkups": 2.8,
+      "heartDisease": -0.3,
+      "copd": -0.4
+    },
+    "targetableBy": ["elderly", "minority", "low_income"],
+    "timeHorizon": "short",
+    "evidenceLevel": "strong",
+    "qalyWeight": 0.35
+  },
+  {
+    "id": "healthy_housing",
+    "name": "Healthy Housing",
+    "category": "Environmental",
+    "icon": "🏠",
+    "description": "Weatherization, mold remediation, heating/cooling assistance, and housing stability programs.",
+    "costPerCapita": 96,
+    "effects": {
+      "copd": -0.8,
+      "mentalHealth": -1.2,
+      "heartDisease": -0.4
+    },
+    "targetableBy": ["low_income", "elderly", "minority"],
+    "timeHorizon": "medium",
+    "evidenceLevel": "moderate",
+    "qalyWeight": 0.45
+  },
+  {
+    "id": "health_literacy",
+    "name": "Health Literacy & Education",
+    "category": "Education",
+    "icon": "📚",
+    "description": "Community health worker programs, culturally tailored education materials, and care navigation services.",
+    "costPerCapita": 28,
+    "effects": {
+      "checkups": 2.4,
+      "diabetes": -0.4,
+      "obesity": -0.6,
+      "smoking": -0.4
+    },
+    "targetableBy": ["minority", "low_income", "elderly"],
+    "timeHorizon": "medium",
+    "evidenceLevel": "moderate",
+    "qalyWeight": 0.3
+  },
+  {
+    "id": "workplace_wellness",
+    "name": "Workplace Wellness",
+    "category": "Behavioral",
+    "icon": "🏢",
+    "description": "Employer wellness programs, flexible work policies, ergonomic interventions, and employee health screenings.",
+    "costPerCapita": 44,
+    "effects": {
+      "obesity": -1.2,
+      "physicalInactivity": -2.0,
+      "mentalHealth": -1.0,
+      "smoking": -0.6
+    },
+    "targetableBy": ["all"],
+    "timeHorizon": "medium",
+    "evidenceLevel": "moderate",
+    "qalyWeight": 0.35
+  },
+  {
+    "id": "transportation_access",
+    "name": "Medical Transportation",
+    "category": "Access",
+    "icon": "🚌",
+    "description": "Non-emergency medical transportation subsidies, ride-share partnerships, and rural clinic shuttle programs.",
+    "costPerCapita": 36,
+    "effects": {
+      "checkups": 3.4,
+      "diabetes": -0.4,
+      "heartDisease": -0.3,
+      "mentalHealth": -0.6
+    },
+    "targetableBy": ["rural", "elderly", "low_income"],
+    "timeHorizon": "short",
+    "evidenceLevel": "moderate",
+    "qalyWeight": 0.3
+  },
+  {
+    "id": "hypertension_control",
+    "name": "Hypertension Control",
+    "category": "Preventive Care",
+    "icon": "❤️",
+    "description": "Blood pressure monitoring, medication adherence programs, sodium reduction campaigns, and DASH diet education.",
+    "costPerCapita": 62,
+    "effects": {
+      "heartDisease": -1.4,
+      "diabetes": -0.4,
+      "checkups": 2.0
+    },
+    "targetableBy": ["elderly", "minority", "low_income"],
+    "timeHorizon": "medium",
+    "evidenceLevel": "strong",
+    "qalyWeight": 0.55
+  },
+  {
+    "id": "school_health",
+    "name": "School Health Programs",
+    "category": "Education",
+    "icon": "🏫",
+    "description": "School-based health centers, physical education investments, healthy cafeteria programs, and vision/dental checks.",
+    "costPerCapita": 54,
+    "effects": {
+      "obesity": -1.6,
+      "physicalInactivity": -2.8,
+      "mentalHealth": -1.4,
+      "smoking": -0.8
+    },
+    "targetableBy": ["low_income", "minority"],
+    "timeHorizon": "long",
+    "evidenceLevel": "strong",
+    "qalyWeight": 0.5
+  },
+  {
+    "id": "social_support",
+    "name": "Social Support Networks",
+    "category": "Behavioral",
+    "icon": "🤝",
+    "description": "Senior centers, community social programs, loneliness reduction initiatives, and peer support groups.",
+    "costPerCapita": 34,
+    "effects": {
+      "mentalHealth": -2.4,
+      "physicalInactivity": -1.2,
+      "checkups": 1.4
+    },
+    "targetableBy": ["elderly", "rural", "low_income"],
+    "timeHorizon": "medium",
+    "evidenceLevel": "moderate",
+    "qalyWeight": 0.4
+  }
+]

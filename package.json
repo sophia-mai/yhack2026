@@ -1,0 +1,14 @@
+{
+  "name": "pulsepolicy",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\" --names \"api,web\" --prefix-colors \"cyan,magenta\"",
+    "build": "npm run build --prefix frontend && npm run build --prefix backend",
+    "generate-data": "node scripts/generateData.mjs",
+    "install:all": "npm install && npm install --prefix frontend && npm install --prefix backend"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
