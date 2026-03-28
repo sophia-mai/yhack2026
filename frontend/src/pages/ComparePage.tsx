@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useStore } from '../store/useStore';
 import { runSimulation } from '../api/client';
 import type { SimulationResponse } from '../types';
+import { HEALTH_METRIC_LABELS } from '../types';
 
 export default function ComparePage() {
   const { interventions, budgetTotal, timeHorizon, simResultA, simResultB, setSimResultA, setSimResultB } = useStore();
@@ -42,7 +43,7 @@ export default function ComparePage() {
     }
   }
 
-  const COMPARE_METRICS = ['obesity', 'smoking', 'diabetes', 'physicalInactivity', 'mentalHealth', 'heartDisease'];
+  const COMPARE_METRICS = ['obesity', 'smoking', 'diabetes', 'physicalInactivity', 'mentalHealth', 'heartDisease', 'copd'];
 
   return (
     <div className="page-full" style={{ gridColumn: '2 / -1', gridRow: 2 }}>
@@ -144,7 +145,7 @@ export default function ComparePage() {
                   onClick={() => setActiveCompareMetric(m)}
                   style={{ fontSize: 11 }}
                 >
-                  {m}
+                  {HEALTH_METRIC_LABELS[m] ?? m}
                 </button>
               ))}
             </div>

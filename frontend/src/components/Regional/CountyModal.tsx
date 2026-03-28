@@ -21,7 +21,7 @@ export default function CountyModal({ county, onClose, resultsByFips }: Props) {
           <div>
             <h2 style={{ fontSize: 20, marginBottom: 4 }}>{county.name}</h2>
             <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-              {county.stateName} · {county.isUrban ? 'Urban' : 'Rural'} · Pop. {county.population.toLocaleString()}
+              {county.stateName} · Pop. {county.population.toLocaleString()}
             </div>
           </div>
           <button className="modal-close" onClick={onClose}>✕</button>
@@ -34,7 +34,7 @@ export default function CountyModal({ county, onClose, resultsByFips }: Props) {
             const val = (county.health as Record<string, number>)[m];
             const unit = HEALTH_METRIC_UNITS[m] ?? '%';
             const change = result?.absoluteChange[m];
-            const pctRange = m === 'checkups' ? [55, 92] : m === 'mortalityRate' ? [550, 1400] : [5, 50];
+            const pctRange = m === 'checkups' ? [10, 70] : m === 'mortalityRate' ? [3000, 20000] : m === 'heartDisease' ? [25, 60] : [5, 50];
             const pct = ((val - Number(pctRange[0])) / (Number(pctRange[1]) - Number(pctRange[0]))) * 100;
             return (
               <div key={m} className="impact-bar-row">
@@ -87,8 +87,8 @@ export default function CountyModal({ county, onClose, resultsByFips }: Props) {
             <div className="metric-tile-label">PM₂.₅ AQI</div>
           </div>
           <div className="metric-tile">
-            <div className="metric-tile-value">{county.environment.aqiO3}</div>
-            <div className="metric-tile-label">Ozone AQI</div>
+            <div className="metric-tile-value">{county.environment.aqiO3.toFixed(1)}</div>
+            <div className="metric-tile-label">Avg Unhealthy Days</div>
           </div>
         </div>
 

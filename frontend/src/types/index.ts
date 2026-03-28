@@ -96,11 +96,11 @@ export const HEALTH_METRIC_LABELS: Record<string, string> = {
   smoking: 'Smoking Rate',
   diabetes: 'Diabetes Rate',
   physicalInactivity: 'Physical Inactivity',
-  mentalHealth: 'Poor Mental Health',
-  heartDisease: 'Heart Disease',
-  copd: 'COPD',
-  checkups: 'Annual Checkups',
-  mortalityRate: 'Mortality Rate',
+  mentalHealth: 'Frequent Mental Distress',
+  heartDisease: 'Insufficient Sleep',
+  copd: 'Excessive Drinking',
+  checkups: 'Flu Vaccination',
+  mortalityRate: 'Premature Death (YPLL)',
 };
 
 export const HEALTH_METRIC_UNITS: Record<string, string> = {

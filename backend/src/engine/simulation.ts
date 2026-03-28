@@ -28,14 +28,14 @@ export interface CountyRecord {
     diabetes: number;
     physicalInactivity: number;
     mentalHealth: number;
-    heartDisease: number;
-    copd: number;
-    checkups: number;
-    mortalityRate: number;
+    heartDisease: number; // mapped from Insufficient Sleep %
+    copd: number;         // mapped from Excessive Drinking %
+    checkups: number;     // mapped from Flu Vaccinations %
+    mortalityRate: number; // mapped from YPLL Rate
   };
   environment: {
     aqiPM25: number;
-    aqiO3: number;
+    aqiO3: number; // mapped from avg physically unhealthy days
   };
   svi: {
     overall: number;
@@ -43,6 +43,84 @@ export interface CountyRecord {
     householdComp: number;
     minority: number;
     housingTransport: number;
+  };
+}
+
+// State name → abbreviation lookup
+const STATE_ABBREV: Record<string, string> = {
+  'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR',
+  'California': 'CA', 'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE',
+  'Florida': 'FL', 'Georgia': 'GA', 'Hawaii': 'HI', 'Idaho': 'ID',
+  'Illinois': 'IL', 'Indiana': 'IN', 'Iowa': 'IA', 'Kansas': 'KS',
+  'Kentucky': 'KY', 'Louisiana': 'LA', 'Maine': 'ME', 'Maryland': 'MD',
+  'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN', 'Mississippi': 'MS',
+  'Missouri': 'MO', 'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV',
+  'New Hampshire': 'NH', 'New Jersey': 'NJ', 'New Mexico': 'NM', 'New York': 'NY',
+  'North Carolina': 'NC', 'North Dakota': 'ND', 'Ohio': 'OH', 'Oklahoma': 'OK',
+  'Oregon': 'OR', 'Pennsylvania': 'PA', 'Rhode Island': 'RI', 'South Carolina': 'SC',
+  'South Dakota': 'SD', 'Tennessee': 'TN', 'Texas': 'TX', 'Utah': 'UT',
+  'Vermont': 'VT', 'Virginia': 'VA', 'Washington': 'WA', 'West Virginia': 'WV',
+  'Wisconsin': 'WI', 'Wyoming': 'WY', 'District of Columbia': 'DC',
+};
+
+function safeNum(val: unknown): number {
+  if (typeof val === 'number' && !isNaN(val)) return val;
+  return 0;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function transformCounty(raw: any): CountyRecord {
+  const g = (category: string, field: string): number =>
+    safeNum((raw[category] as Record<string, unknown>)?.[field]);
+
+  const pctPoverty      = g('Children in Poverty', '% Children in Poverty');
+  const pctUninsured    = g('Uninsured', '% Uninsured');
+  const pctElderly      = g('% 65 and Older', '% 65 and Over');
+  const pctBlack        = g('% Non-Hispanic Black', '% Non-Hispanic Black');
+  const pctHispanic     = g('% Hispanic', '% Hispanic');
+  const pctWhite        = g('% Non-Hispanic White', '% Non-Hispanic White');
+  const pctRural        = g('% Rural', '% Rural');
+  const pctUnemployed   = g('Unemployment', '% Unemployed');
+  const pctSingleParent = g('Children in Single-Parent Households', '% Children in Single-Parent Households');
+  const pctHousingProb  = g('Severe Housing Problems', '% Severe Housing Problems');
+
+  // Compute SVI-like composite scores (0-1 normalized)
+  const sviSocioeconomic    = Math.min(1, (pctPoverty / 30 + pctUnemployed / 15) / 2);
+  const sviHouseholdComp    = Math.min(1, (pctSingleParent / 50 + pctPoverty / 40) / 2);
+  const sviMinority         = Math.min(1, (pctBlack + pctHispanic) / 100);
+  const sviHousingTransport = Math.min(1, pctHousingProb / 40);
+  const sviOverall = (sviSocioeconomic + sviHouseholdComp + sviMinority + sviHousingTransport) / 4;
+
+  return {
+    fips:      raw.fips,
+    name:      raw.county,
+    state:     STATE_ABBREV[raw.state as string] ?? (raw.state as string).slice(0, 2).toUpperCase(),
+    stateName: raw.state as string,
+    population: g('Population', 'Population'),
+    isUrban: pctRural < 20,
+    demographics: { pctPoverty, pctUninsured, pctElderly, pctBlack, pctHispanic, pctWhite },
+    health: {
+      obesity:            g('Adult Obesity', '% Adults with Obesity'),
+      smoking:            g('Adult Smoking', '% Adults Reporting Currently Smoking'),
+      diabetes:           g('Diabetes Prevalence', '% Adults with Diabetes'),
+      physicalInactivity: g('Physical Inactivity', '% Physically Inactive'),
+      mentalHealth:       g('Frequent Mental Distress', '% Frequent Mental Distress'),
+      heartDisease:       g('Insufficient Sleep', '% Insufficient Sleep'),
+      copd:               g('Excessive Drinking', '% Excessive Drinking'),
+      checkups:           g('Flu Vaccinations', '% Vaccinated'),
+      mortalityRate:      g('Premature Death', 'Years of Potential Life Lost Rate'),
+    },
+    environment: {
+      aqiPM25: g('Air Pollution: Particulate Matter', 'Average Daily PM2.5'),
+      aqiO3:   g('Poor Physical Health Days', 'Average Number of Physically Unhealthy Days'),
+    },
+    svi: {
+      overall:          sviOverall,
+      socioeconomic:    sviSocioeconomic,
+      householdComp:    sviHouseholdComp,
+      minority:         sviMinority,
+      housingTransport: sviHousingTransport,
+    },
   };
 }
 
@@ -78,7 +156,9 @@ function resolveDataPath(filename: string): string {
 
 export function getCountyData(): CountyRecord[] {
   if (!_countyData) {
-    _countyData = JSON.parse(readFileSync(resolveDataPath('counties_health.json'), 'utf-8'));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw: any[] = JSON.parse(readFileSync(resolveDataPath('county_health_data_full.json'), 'utf-8'));
+    _countyData = raw.map(transformCounty);
   }
   return _countyData!;
 }
@@ -122,15 +202,16 @@ const TARGETING_MULTIPLIERS: Record<string, (county: CountyRecord) => number> = 
 };
 
 // QALY weights by health indicator
+// heartDisease = Insufficient Sleep %, copd = Excessive Drinking %, checkups = Flu Vaccination %
 const QALY_WEIGHTS: Record<string, number> = {
   obesity: 0.04,
   smoking: 0.08,
   diabetes: 0.07,
   physicalInactivity: 0.04,
   mentalHealth: 0.09,
-  heartDisease: 0.12,
-  copd: 0.10,
-  checkups: -0.03, // improving checkups is positive, but the weight is applied differently
+  heartDisease: 0.06, // insufficient sleep
+  copd: 0.07,         // excessive drinking
+  checkups: -0.03,    // improving flu vaccination is positive
 };
 
 // Saturation: diminishing returns function
@@ -175,7 +256,8 @@ export function simulateCounty(
 
       // Clamp to realistic bounds
       if (indicator === 'checkups') {
-        (projected as Record<string, number>)[indicator] = Math.min(97, Math.max(40, projected[indicator as keyof typeof projected] as number));
+        // Flu vaccination: clamp to [5, 90]
+        (projected as Record<string, number>)[indicator] = Math.min(90, Math.max(5, projected[indicator as keyof typeof projected] as number));
       } else {
         (projected as Record<string, number>)[indicator] = Math.max(0, projected[indicator as keyof typeof projected] as number);
       }
