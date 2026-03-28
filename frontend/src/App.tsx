@@ -5,13 +5,11 @@ import USMap from './components/Map/USMap';
 import MapPage from './pages/MapPage';
 import ComparePage from './pages/ComparePage';
 import IndividualPage from './pages/IndividualPage';
-import OptimizerPage from './pages/OptimizerPage';
 
 const TABS: { id: TabId; label: string; icon: string; navIcon: string }[] = [
   { id: 'map', label: 'Intervention Map', icon: '🗺️', navIcon: '🗺️' },
   { id: 'compare', label: 'Compare Scenarios', icon: '⚖️', navIcon: '⚖️' },
   { id: 'individual', label: 'Individual Impact', icon: '👤', navIcon: '👤' },
-  { id: 'optimizer', label: 'Budget Optimizer', icon: '📈', navIcon: '📈' },
 ];
 
 export default function App() {
@@ -88,7 +86,6 @@ export default function App() {
         {activeTab === 'map' && <MapPage />}
         {activeTab === 'compare' && <ComparePage />}
         {activeTab === 'individual' && <IndividualPage />}
-        {activeTab === 'optimizer' && <OptimizerPage />}
       </div>
     </>
   );
