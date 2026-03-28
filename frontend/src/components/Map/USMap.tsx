@@ -118,15 +118,24 @@ export default function USMap() {
     const tx = (w - 975 * scale) / 2;
     const ty = (h - 610 * scale) / 2;
 
-    const g = svg.append('g').attr('transform', `translate(${tx},${ty}) scale(${scale})`);
+    const zoomContainer = svg.append('g').attr('class', 'zoom-layer');
+    const renderLayer = zoomContainer.append('g').attr('transform', `translate(${tx},${ty}) scale(${scale})`);
+
+    const zoom = d3.zoom<SVGSVGElement, unknown>()
+      .scaleExtent([1, 10])
+      .translateExtent([[0, 0], [w, h]])
+      .on('zoom', (event) => {
+        zoomContainer.attr('transform', event.transform);
+      });
+
+    svg.call(zoom);
+
     const path = d3.geoPath(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const us = topoData as any;
 
     // Draw counties
-    // IMPORTANT: handlers read from countyByFipsRef (not countyByFips directly)
-    // to avoid stale closures that caused the wrong county tooltip bug.
-    g.selectAll<SVGPathElement, GeoJSON.Feature>('.county-path')
+    renderLayer.selectAll<SVGPathElement, GeoJSON.Feature>('.county-path')
       .data((topojson.feature(us, us.objects.counties) as unknown as GeoJSON.FeatureCollection).features)
       .enter()
       .append('path')
@@ -153,7 +162,7 @@ export default function USMap() {
       });
 
     // State borders mesh
-    g.append('path')
+    renderLayer.append('path')
       .datum(topojson.mesh(us, us.objects.states, (a, b) => a !== b))
       .attr('class', 'state-mesh')
       .attr('d', path);

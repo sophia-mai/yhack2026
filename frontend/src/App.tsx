@@ -31,13 +31,15 @@ export default function App() {
   }, [setCounties, setInterventions]);
 
   return (
-    <div className="app-shell">
+    <>
+      <div className="texture-overlay" />
+      <div className="app-shell">
       {/* Header */}
       <header className="app-header">
-        <a className="logo" href="#">
-          <div className="logo-icon">💉</div>
-          <span>
-            Pro<span className="text-gradient">phis</span>
+        <a className="logo" href="#" style={{ letterSpacing: '-0.02em', fontSize: 20 }}>
+          <div className="logo-icon" style={{ boxShadow: '0 0 24px rgba(0,212,170,0.4)', fontSize: 18 }}>✨</div>
+          <span style={{ fontWeight: 800 }}>
+            PR<span className="text-gradient">OPHIS</span>
           </span>
         </a>
 
@@ -82,11 +84,12 @@ export default function App() {
           <USMap />
         </div>
 
-      {/* Page Content Layers */}
-      {activeTab === 'map' && <MapPage />}
-      {activeTab === 'compare' && <ComparePage />}
-      {activeTab === 'individual' && <IndividualPage />}
-      {activeTab === 'optimizer' && <OptimizerPage />}
-    </div>
+        {/* Page Content Layers */}
+        {activeTab === 'map' && <MapPage />}
+        {activeTab === 'compare' && <ComparePage />}
+        {activeTab === 'individual' && <IndividualPage />}
+        {activeTab === 'optimizer' && <OptimizerPage />}
+      </div>
+    </>
   );
 }

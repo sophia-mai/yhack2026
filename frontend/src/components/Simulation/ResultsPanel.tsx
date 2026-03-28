@@ -35,70 +35,75 @@ export default function ResultsPanel() {
     <div className="scroll-y" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
       {/* Summary KPIs */}
       <div className="fade-in">
-        <div className="section-label">Simulation Results</div>
-        <div className="metrics-grid" style={{ marginTop: 8 }}>
-          <div className="metric-tile" style={{ borderColor: 'rgba(0,212,170,0.25)' }}>
-            <div className="metric-tile-value num-accent">{s.totalQalysGained.toLocaleString()}</div>
-            <div className="metric-tile-label">QALYs Gained</div>
+        <div style={{ padding: '0 4px 16px' }}>
+          <div className="metric-tile-label" style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total QALYs Gained</div>
+          <div className="metric-massive text-gradient" style={{ marginTop: 4 }}>
+            {s.totalQalysGained > 1000000 
+              ? (s.totalQalysGained / 1000000).toFixed(1) + 'M' 
+              : s.totalQalysGained.toLocaleString()}
           </div>
-          <div className="metric-tile">
-            <div className="metric-tile-value">${s.avgCostPerQaly.toLocaleString()}</div>
+        </div>
+        <div className="metrics-grid">
+          <div className="metric-tile card-glass">
+            <div className="metric-tile-value text-gradient">${s.avgCostPerQaly.toLocaleString()}</div>
             <div className="metric-tile-label">Cost / QALY</div>
           </div>
-          <div className="metric-tile">
-            <div className="metric-tile-value">{s.countiesAnalyzed.toLocaleString()}</div>
+          <div className="metric-tile card-glass">
+            <div className="metric-tile-value text-gradient">{s.countiesAnalyzed.toLocaleString()}</div>
             <div className="metric-tile-label">Counties Analyzed</div>
           </div>
-          <div className="metric-tile">
-            <div className="metric-tile-value">{(s.totalPopulation / 1_000_000).toFixed(1)}M</div>
+          <div className="metric-tile card-glass">
+            <div className="metric-tile-value text-gradient">{(s.totalPopulation / 1_000_000).toFixed(1)}M</div>
             <div className="metric-tile-label">People Reached</div>
           </div>
         </div>
       </div>
 
       {/* Avg metric change */}
-      <div className="card">
-        <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 4 }}>{label} — Avg Change</div>
+      <div className="card-glass" style={{ padding: 16 }}>
+        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-dim)', marginBottom: 4 }}>{label} — Avg Change</div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span className="num-large" style={{
+          <span className="metric-massive" style={{
+            fontSize: '2.5rem',
             color: (selectedMetric === 'checkups' ? avgChange > 0 : avgChange < 0)
               ? 'var(--accent-primary)' : 'var(--accent-coral)'
           }}>
             {avgChange > 0 ? '+' : ''}{avgChange.toFixed(2)}{unit}
           </span>
-          <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>avg across all counties</span>
+          <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>across {s.countiesAnalyzed} counties</span>
         </div>
-        <div style={{ marginTop: 8, height: 6, background: 'var(--bg-base)', borderRadius: 3, overflow: 'hidden' }}>
+        <div style={{ marginTop: 12, height: 4, background: 'rgba(255,255,255,0.05)', borderRadius: 2, overflow: 'hidden' }}>
           <div style={{
-            height: '100%', borderRadius: 3,
+            height: '100%', borderRadius: 2,
             background: (selectedMetric === 'checkups' ? avgChange > 0 : avgChange < 0)
               ? 'var(--accent-primary)' : 'var(--accent-coral)',
             width: `${Math.min(100, Math.abs(avgChange) * 10)}%`,
-            transition: 'width 0.5s ease',
+            transition: 'width 0.8s cubic-bezier(0.16, 1, 0.3, 1)',
           }} />
         </div>
       </div>
 
       {/* Equity */}
-      <div className="card">
-        <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>Health Equity</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div className="equity-gauge">
-            <div className="gauge-value" style={{
+      <div className="card-glass" style={{ padding: 16 }}>
+        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-dim)', marginBottom: 12 }}>Health Equity</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div className="equity-gauge" style={{ width: 64, height: 64, background: 'rgba(255,255,255,0.02)' }}>
+            <div className="metric-massive" style={{
+              fontSize: '1.5rem',
               color: s.giniCoefficient < 0.2 ? 'var(--accent-primary)'
                 : s.giniCoefficient < 0.35 ? 'var(--accent-amber)'
                 : 'var(--accent-coral)'
             }}>
-              {s.giniCoefficient.toFixed(3)}
+              {s.giniCoefficient.toFixed(2)}
             </div>
-            <div className="gauge-label">Gini Coefficient</div>
+            <div className="gauge-label" style={{ marginTop: 2 }}>Gini</div>
           </div>
-          <div style={{ flex: 1, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+          <div style={{ flex: 1, fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.5 }}>
             {s.giniCoefficient < 0.2
-              ? '✅ Low disparity — interventions are well distributed'
+              ? 'Excellent equity distribution across demographics.'
               : s.giniCoefficient < 0.35
-              ? '⚠️ Moderate disparity — consider targeted programs'
-              : '🔴 High disparity — equity-focused targeting recommended'}
+              ? 'Moderate disparity detected. Consider targeted programs.'
+              : 'High disparity. Equity-focused targeting highly recommended.'}
           </div>
         </div>
       </div>
@@ -125,15 +130,15 @@ export default function ResultsPanel() {
       </div>
 
       {/* Budget */}
-      <div className="card">
-        <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 6 }}>Budget Breakdown</div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-          <span style={{ color: 'var(--text-secondary)' }}>Total Budget</span>
-          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>${s.budgetTotal.toLocaleString()}</span>
+      <div className="card-glass" style={{ padding: 16 }}>
+        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-dim)', marginBottom: 8 }}>Budget Breakdown</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+          <span style={{ color: 'var(--text-secondary)' }}>Total Capital</span>
+          <span style={{ fontWeight: 700, color: 'var(--accent-blue)', letterSpacing: '-0.02em' }}>${s.budgetTotal.toLocaleString()}</span>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginTop: 4 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 6 }}>
           <span style={{ color: 'var(--text-secondary)' }}>Time Horizon</span>
-          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{s.timeHorizonYears} years</span>
+          <span style={{ fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>{s.timeHorizonYears} Years</span>
         </div>
       </div>
     </div>
