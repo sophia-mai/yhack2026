@@ -41,7 +41,7 @@ export default function SimulationControls() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+    <div className="simulation-controls" style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
       {/* Map Mode switcher */}
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
         <div className="section-label">Map Layer</div>
