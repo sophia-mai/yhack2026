@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
 
 /* ── Design Tokens ─────────────────────────────────── */
 :root {
@@ -54,7 +54,7 @@ html, body, #root {
 }
 
 body {
-  font-family: 'Inter', -apple-system, sans-serif;
+  font-family: 'Outfit', -apple-system, sans-serif;
   background: var(--bg-base);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
@@ -69,13 +69,13 @@ body {
 
 /* ── Typography ─────────────────────────────────────── */
 h1, h2, h3, h4 {
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: 'Outfit', sans-serif;
   line-height: 1.1;
   letter-spacing: -0.03em;
 }
 
 .metric-massive {
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: 'Outfit', sans-serif;
   font-size: 3.5rem;
   font-weight: 700;
   line-height: 1;
@@ -135,7 +135,7 @@ h1, h2, h3, h4 {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: 'Outfit', sans-serif;
   font-size: 18px;
   font-weight: 700;
   color: var(--text-primary);
@@ -303,7 +303,7 @@ h1, h2, h3, h4 {
 }
 
 .panel-title {
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: 'Outfit', sans-serif;
   font-size: 14px;
   font-weight: 700;
   color: var(--text-primary);

@@ -112,10 +112,18 @@ export default function USMap() {
 
     const { w, h } = dimensions;
 
-    const scaleX = w / 975;
+    // Account for floating panels: Left (320px + 88px offset = 408), Right (340px + 16px offset = 356)
+    const leftOffset = 408;
+    const rightOffset = 356;
+    const safeW = Math.max(400, w - leftOffset - rightOffset); // The visible center area
+    
+    // Scale strictly to fit the 100% visible safe zone
+    const scaleX = safeW / 975;
     const scaleY = h / 610;
-    const scale = Math.min(scaleX, scaleY);
-    const tx = (w - 975 * scale) / 2;
+    const scale = Math.min(scaleX, scaleY) * 0.95; // 5% padding inside safe area
+    
+    // Center it strictly inside the safe area
+    const tx = leftOffset + (safeW - 975 * scale) / 2;
     const ty = (h - 610 * scale) / 2;
 
     const zoomContainer = svg.append('g').attr('class', 'zoom-layer');
@@ -123,7 +131,7 @@ export default function USMap() {
 
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([1, 10])
-      .translateExtent([[0, 0], [w, h]])
+      .translateExtent([[-w * 0.5, -h * 0.5], [w * 1.5, h * 1.5]]) // Loosen pan bounds
       .on('zoom', (event) => {
         zoomContainer.attr('transform', event.transform);
       });
@@ -143,6 +151,7 @@ export default function USMap() {
       .attr('d', d => path(d as GeoJSON.Feature) || '')
       .attr('fill', d => getCountyColor(String(d.id).padStart(5, '0')))
       .on('mousemove', function (event, d) {
+        d3.select(this).raise(); // Bring hovered county to the top so its thick border isn't clipped
         const fips = String(d.id).padStart(5, '0');
         // Read from ref so this always reflects the latest loaded county data
         const county = countyByFipsRef.current.get(fips) ?? null;
