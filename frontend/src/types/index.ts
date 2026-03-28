@@ -116,4 +116,4 @@ export const HEALTH_METRIC_UNITS: Record<string, string> = {
 };
 
 export type MapMode = 'baseline' | 'impact' | 'equity' | 'vulnerability';
-export type TabId = 'map' | 'compare' | 'individual' | 'optimizer';
+export type TabId = 'map' | 'compare' | 'individual';
