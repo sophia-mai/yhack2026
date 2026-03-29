@@ -3,22 +3,78 @@ import { getCountyData } from '../engine/simulation.js';
 
 const router = Router();
 
-const LAVA_FORWARD_URL = 'https://api.lavapayments.com/v1/forward?u=https://api.anthropic.com/v1/messages';
-const CLAUDE_MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-4-6';
+const LAVA_CHAT_URL = 'https://api.lava.so/v1/chat/completions';
+const DEFAULT_MODEL = process.env.LAVA_MODEL || process.env.CLAUDE_MODEL || 'openai/gpt-4o-mini';
+const FAST_MODEL = process.env.LAVA_MODEL_FAST || DEFAULT_MODEL;
+const SUMMARY_MODEL = process.env.LAVA_MODEL_SUMMARY || DEFAULT_MODEL;
+const DEEP_MODEL = process.env.LAVA_MODEL_DEEP || DEFAULT_MODEL;
 
-function getLavaToken(): string {
-  const token = process.env.LAVA_FORWARD_TOKEN;
-  if (!token) throw new Error('LAVA_FORWARD_TOKEN is not set in environment');
+type LavaMessage = { role: 'system' | 'user' | 'assistant'; content: string };
+
+function getLavaAuthToken(): string {
+  const token = process.env.LAVA_SECRET_KEY || process.env.LAVA_FORWARD_TOKEN;
+  if (!token) throw new Error('Neither LAVA_SECRET_KEY nor LAVA_FORWARD_TOKEN is set in environment');
   return token;
 }
 
-function getLavaSecret(): string {
-  const secret = process.env.LAVA_SECRET_KEY;
-  if (!secret) throw new Error('LAVA_SECRET_KEY is not set in environment');
-  return secret;
+async function callLavaChat(options: {
+  model: string;
+  messages: LavaMessage[];
+  maxTokens: number;
+  temperature?: number;
+}): Promise<string> {
+  const response = await fetch(LAVA_CHAT_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${getLavaAuthToken()}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: options.model,
+      messages: options.messages,
+      max_tokens: options.maxTokens,
+      temperature: options.temperature ?? 0.2,
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Lava API error: ${response.status} ${errText}`);
+  }
+
+  const data = await response.json() as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+
+  return data.choices?.[0]?.message?.content ?? '';
 }
 
-// POST /api/ai/summarize — streaming summary via Lava
+async function callLavaWithFallback(options: {
+  primaryModel: string;
+  fallbackModel: string;
+  messages: LavaMessage[];
+  maxTokens: number;
+  temperature?: number;
+}): Promise<string> {
+  try {
+    return await callLavaChat({
+      model: options.primaryModel,
+      messages: options.messages,
+      maxTokens: options.maxTokens,
+      temperature: options.temperature,
+    });
+  } catch (primaryErr) {
+    console.warn(`Primary model failed (${options.primaryModel}), falling back to ${options.fallbackModel}.`, primaryErr);
+    return callLavaChat({
+      model: options.fallbackModel,
+      messages: options.messages,
+      maxTokens: options.maxTokens,
+      temperature: options.temperature,
+    });
+  }
+}
+
+// POST /api/ai/summarize — summary using Lava unified API
 router.post('/summarize', async (req, res) => {
   try {
     const { simulationSummary, interventions, objective, countyCount } = req.body;
@@ -29,59 +85,21 @@ router.post('/summarize', async (req, res) => {
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
-    const claudeRes = await fetch(LAVA_FORWARD_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${getLavaToken()}`,
-        'x-api-key': getLavaSecret(),
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: CLAUDE_MODEL,
-        max_tokens: 1024,
-        stream: true,
-        system: `You are a public health policy expert and data scientist. You analyze simulation results from PulsePolicy, a decision-support tool for public health interventions. Your summaries are clear, evidence-based, and equity-focused. Write in a professional but accessible tone. Use specific numbers from the data. Structure your response with clear sections.`,
-        messages: [{ role: 'user', content: prompt }],
-      }),
+    const content = await callLavaWithFallback({
+      primaryModel: SUMMARY_MODEL,
+      fallbackModel: FAST_MODEL,
+      maxTokens: 1024,
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a public health policy expert and data scientist. Generate concise, evidence-based, equity-aware summaries with concrete numbers and actionable recommendations.',
+        },
+        { role: 'user', content: prompt },
+      ],
     });
 
-    if (!claudeRes.ok || !claudeRes.body) {
-      const errText = await claudeRes.text();
-      res.write(`data: ${JSON.stringify({ error: `Lava API error: ${claudeRes.status} ${errText}` })}\n\n`);
-      res.end();
-      return;
-    }
-
-    const reader = claudeRes.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? ''; // keep incomplete last line
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const raw = line.slice(6).trim();
-          if (raw === '[DONE]' || !raw) continue;
-          try {
-            const event = JSON.parse(raw);
-            // Lava-forwarded streaming events: content_block_delta carries text
-            if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
-              const text = event.delta.text ?? '';
-              if (text) res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
-            }
-            if (event.type === 'message_stop') {
-              res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-            }
-          } catch { /* skip malformed lines */ }
-        }
-      }
+    if (content) {
+      res.write(`data: ${JSON.stringify({ content })}\n\n`);
     }
 
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
@@ -98,31 +116,17 @@ router.post('/insight', async (req, res) => {
   try {
     const { county, metric, value, percentile } = req.body;
 
-    const claudeRes = await fetch(LAVA_FORWARD_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${getLavaToken()}`,
-        'x-api-key': getLavaSecret(),
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: CLAUDE_MODEL,
-        max_tokens: 150,
-        messages: [{
-          role: 'user',
-          content: `In 2 sentences, explain the public health significance of ${county} having a ${metric} rate of ${value}% (${percentile}th percentile nationally). Focus on impact and actionable framing.`,
-        }],
-      }),
+    const insight = await callLavaWithFallback({
+      primaryModel: FAST_MODEL,
+      fallbackModel: SUMMARY_MODEL,
+      maxTokens: 180,
+      messages: [{
+        role: 'user',
+        content: `In 2 sentences, explain the public health significance of ${county} having a ${metric} rate of ${value}% (${percentile}th percentile nationally). Focus on impact and actionable framing.`,
+      }],
     });
 
-    if (!claudeRes.ok) {
-      const err = await claudeRes.text();
-      return res.status(claudeRes.status).json({ error: err });
-    }
-
-    const data = await claudeRes.json() as { content: Array<{ text: string }> };
-    return res.json({ insight: data.content[0]?.text ?? '' });
+    return res.json({ insight });
   } catch (err) {
     return res.status(500).json({ error: String(err) });
   }
@@ -178,29 +182,16 @@ ${interventionNote}
 
 Return JSON array only.`;
 
-    const claudeRes = await fetch(LAVA_FORWARD_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${getLavaToken()}`,
-        'x-api-key': getLavaSecret(),
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: CLAUDE_MODEL,
-        max_tokens: 1400,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userPrompt }],
-      }),
+    const rawText = await callLavaWithFallback({
+      primaryModel: DEEP_MODEL,
+      fallbackModel: SUMMARY_MODEL,
+      maxTokens: 1400,
+      temperature: 0.1,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
     });
-
-    if (!claudeRes.ok) {
-      const err = await claudeRes.text();
-      return res.status(claudeRes.status).json({ error: `Lava API error: ${claudeRes.status} ${err}` });
-    }
-
-    const data = await claudeRes.json() as { content: Array<{ text: string }> };
-    const rawText = data.content[0]?.text ?? '[]';
 
     // Strip markdown code fences if present
     const cleaned = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
@@ -220,10 +211,10 @@ Return JSON array only.`;
           timeline = JSON.parse(recovered);
           console.warn(`patient-timeline: JSON was truncated, recovered ${(timeline as unknown[]).length} events`);
         } catch {
-          return res.status(500).json({ error: 'Failed to parse Lava timeline response', raw: rawText });
+          return res.status(500).json({ error: 'Failed to parse timeline response', raw: rawText });
         }
       } else {
-        return res.status(500).json({ error: 'Failed to parse Lava timeline response', raw: rawText });
+        return res.status(500).json({ error: 'Failed to parse timeline response', raw: rawText });
       }
     }
 
