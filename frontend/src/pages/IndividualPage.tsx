@@ -184,7 +184,7 @@ export default function IndividualPage() {
         <div className="patient-form-header">
           <div>
             <h2 className="patient-form-title">Patient Profile</h2>
-            <p className="patient-form-subtitle">Enter demographics & medical history to generate an AI health timeline</p>
+            <p className="patient-form-subtitle">Build a patient context report — combine medical records with county and national health data</p>
           </div>
           <button className="btn-mock" onClick={loadMock}>⚡ Demo</button>
         </div>
@@ -360,11 +360,17 @@ export default function IndividualPage() {
       <div className="timeline-panel">
         {!timeline && !loading && (
           <div className="timeline-empty">
-            <div className="timeline-empty-icon">⏱</div>
-            <div className="timeline-empty-title">Your patient timeline will appear here</div>
+            <div className="timeline-empty-icon">🩺</div>
+            <div className="timeline-empty-title">Enter a patient to build their health context</div>
             <div className="timeline-empty-sub">
-              Fill in the profile and click "Generate Health Timeline" — Lava will analyze the records
-              and map the patient story against county and national health context.
+              Prophis reads a patient's medical history and maps it into a chronological health
+              narrative — then grounds it in real county and national data to surface how the patient's
+              trajectory relates to the population patterns around them.
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 4, justifyContent: 'center', flexWrap: 'wrap', fontSize: 11, color: 'var(--text-dim)' }}>
+              <span style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-subtle)', borderRadius: 6, padding: '4px 10px' }}>📋 Chronological timeline</span>
+              <span style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-subtle)', borderRadius: 6, padding: '4px 10px' }}>📍 County health context</span>
+              <span style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-subtle)', borderRadius: 6, padding: '4px 10px' }}>⚕ Intervention explorer</span>
             </div>
             <button className="btn-mock-large" onClick={() => { loadMock(); }}>
               ⚡ Load Demo Patient
@@ -375,8 +381,8 @@ export default function IndividualPage() {
         {loading && (
           <div className="timeline-loading">
             <div className="loading-orb" />
-            <div className="loading-title">Analyzing patient data…</div>
-            <div className="loading-sub">Lava is reading the medical records and building a personalized health timeline</div>
+            <div className="loading-title">Building patient health context…</div>
+            <div className="loading-sub">Reading medical records, generating the health timeline, and matching against county population data</div>
           </div>
         )}
 
@@ -486,10 +492,10 @@ export default function IndividualPage() {
                   onClick={() => setShowInsights(v => !v)}
                 >
                   <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-dim)' }}>
-                    Community Health Equity Context
+                    County Health Context
                   </span>
                   <span style={{ fontSize: 11, color: 'var(--accent-blue)' }}>
-                    {showInsights ? '▲ Hide' : '▼ Show'} · Grade {insight.grade}
+                    {showInsights ? '▲ Collapse' : `▼ Expand · Grade ${insight.grade}`}
                   </span>
                 </button>
                 {showInsights && (
@@ -692,7 +698,7 @@ function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
         previewTop: 122,
         detailWidth: 292,
         detailTop: 22,
-        tailPadding: 280,
+        tailPadding: 140,
         minCanvasHeight: 472,
         nodeScale: 0.88,
       }
@@ -705,11 +711,12 @@ function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
         previewTop: 152,
         detailWidth: 364,
         detailTop: 28,
-        tailPadding: 380,
+        tailPadding: 160,
         minCanvasHeight: 680,
         nodeScale: 1,
       };
-  const canvasWidth = Math.max(compact ? 1180 : 1400, layout.padding * 2 + Math.max(events.length - 1, 0) * layout.gap + layout.tailPadding);
+  const lastNodeX = layout.padding + Math.max(events.length - 1, 0) * layout.gap;
+  const canvasWidth = Math.max(compact ? 1180 : 1400, lastNodeX + layout.detailWidth + layout.tailPadding);
 
   useEffect(() => {
     if (!wrapperRef.current) return;
@@ -827,12 +834,12 @@ function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
     <div ref={wrapperRef} className={`timeline-canvas-wrapper${compact ? ' compact' : ''}`}>
       <div className="timeline-stage-hud">
         <div className="timeline-stage-copy">
-          <div className="timeline-stage-kicker">Patient trajectory</div>
+          <div className="timeline-stage-kicker">Health Narrative</div>
           <div className="timeline-stage-title">
-            {events.length} key moments
-            {typeof firstAge === 'number' && typeof lastAge === 'number' ? ` from age ${firstAge} to ${lastAge}` : ''}
+            {events.length} key clinical moments
+            {typeof firstAge === 'number' && typeof lastAge === 'number' ? ` · age ${firstAge} – ${lastAge}` : ''}
           </div>
-          <div className="timeline-stage-hint">Drag, scroll, or use arrow keys to move through the story.</div>
+          <div className="timeline-stage-hint">Drag or scroll to move through the record. Click any event to read details.</div>
         </div>
       </div>
 
@@ -867,7 +874,7 @@ function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
           <span className={`timeline-card-severity timeline-card-severity-${focusedEvent?.severity}`}>{focusedEvent?.severity}</span>
         </div>
         {focusedIsFuture && !focusedEvent?.avoided && (
-          <div className="timeline-focus-note">Projected from the patient profile, prior history, and similarity model.</div>
+          <div className="timeline-focus-note">Projected context based on the patient profile, prior history, and county population patterns. Not a clinical prediction.</div>
         )}
       </div>
 
@@ -903,8 +910,8 @@ function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
           <div className="timeline-ambient timeline-ambient-center" />
           <div className="timeline-ambient timeline-ambient-right" />
 
-          <div className="timeline-baseline" style={{ top: layout.lineY }} />
-          <div className="timeline-baseline-glow" style={{ top: layout.lineY - 6 }} />
+          <div className="timeline-baseline" style={{ top: layout.lineY, width: Math.max(0, lastNodeX - 72 + 28) }} />
+          <div className="timeline-baseline-glow" style={{ top: layout.lineY - 6, width: Math.max(0, lastNodeX - 72 + 28) }} />
 
           {events.map((ev, i) => {
             const x = layout.padding + i * layout.gap;

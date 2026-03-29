@@ -125,7 +125,7 @@ export default function MapPage() {
         <div className="panel-header">
           <div className="panel-title">Population Context</div>
           <div className="panel-subtitle">
-            Use county and national patterns to contextualize the patient story, not replace it.
+            Zoom out from the individual patient to see the county and national forces shaping their health story.
           </div>
         </div>
 
@@ -199,10 +199,9 @@ export default function MapPage() {
           </div>
 
           <div className="population-panel-card">
-            <div className="section-label">How to Read This</div>
+            <div className="section-label">How to Use This</div>
             <div className="population-explainer-copy">
-              Start from the patient’s matched county, then compare it with the selected county, state average, and national position.
-              This page is best used to explain why a case looks the way it does and which broader community signals should shape follow-up decisions.
+              Start from the patient’s matched county to see the population forces behind their case. Compare it against state and national baselines to explain disparities, identify follow-up priorities, and surface the community-level signals that individual records alone can’t show.
             </div>
           </div>
         </div>
@@ -217,7 +216,7 @@ export default function MapPage() {
             <div className="panel-subtitle">
               {activeCounty
                 ? 'Selected county compared against patient anchor, state, and national context.'
-                : 'Select a county to inspect the broader population patterns behind the patient story.'}
+                : 'Click any county on the map — or use the patient anchor to jump to the matched county.'}
             </div>
           </div>
 
