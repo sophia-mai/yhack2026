@@ -1,3 +1,5 @@
+import type { SimilarityResult } from '../types';
+
 const API_BASE = '/api';
 
 export async function fetchCounties(params?: { state?: string; fips?: string }) {
@@ -88,6 +90,25 @@ export function streamAISummary(
   }).catch(e => onError(String(e)));
 }
 
+export async function getPopulationInsight(body: {
+  county: string;
+  metric: string;
+  value: number;
+  percentile: number;
+  stateAverage?: number;
+  nationalAverage?: number;
+  matchedCounty?: string;
+  patientLabel?: string;
+}) {
+  const res = await fetch(`${API_BASE}/ai/insight`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<{ insight: string }>;
+}
+
 export async function generatePatientTimeline(body: {
   profile: Record<string, unknown>;
   medicalHistory: string;
@@ -120,15 +141,6 @@ export async function getSimilarityScore(profile: {
   return res.json();
 }
 
-export interface SimilarityResult {
-  score: number;
-  county: { name: string; state: string; fips: string };
-  countyDiabetesRate: number;
-  countyObesityRate: number;
-  countySmokingRate: number;
-  population: number;
-}
-
 export interface TimelineEvent {
   age: number;
   year: number;
@@ -139,4 +151,3 @@ export interface TimelineEvent {
   category: string;
   avoided: boolean;
 }
-

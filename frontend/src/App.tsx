@@ -3,7 +3,6 @@ import { useStore } from './store/useStore';
 import type { CountyRecord, TabId } from './types';
 import USMap from './components/Map/USMap';
 import MapPage from './pages/MapPage';
-import ComparePage from './pages/ComparePage';
 import IndividualPage from './pages/IndividualPage';
 
 const STATE_ABBREV: Record<string, string> = {
@@ -121,13 +120,12 @@ function transformCounty(raw: Record<string, unknown>): CountyRecord {
 }
 
 const TABS: { id: TabId; label: string; icon: string; navIcon: string }[] = [
-  { id: 'map', label: 'Intervention Map', icon: '🗺️', navIcon: '🗺️' },
-  { id: 'compare', label: 'Compare Scenarios', icon: '⚖️', navIcon: '⚖️' },
-  { id: 'individual', label: 'Individual Impact', icon: '👤', navIcon: '👤' },
+  { id: 'individual', label: 'Individual Context', icon: '👤', navIcon: '👤' },
+  { id: 'map', label: 'Population Context', icon: '🗺️', navIcon: '🗺️' },
 ];
 
 export default function App() {
-  const { activeTab, setActiveTab, setCounties, setInterventions } = useStore();
+  const { activeTab, setActiveTab, setCounties } = useStore();
 
   // Load static data on mount
   useEffect(() => {
@@ -136,12 +134,7 @@ export default function App() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .then((data: any[]) => setCounties(data.map(transformCounty)))
       .catch(console.error);
-
-    fetch('/data/interventions.json')
-      .then(r => r.json())
-      .then(data => setInterventions(data))
-      .catch(console.error);
-  }, [setCounties, setInterventions]);
+  }, [setCounties]);
 
   return (
     <>
@@ -194,7 +187,6 @@ export default function App() {
 
         {/* Page Content Layers */}
         {activeTab === 'map' && <MapPage />}
-        {activeTab === 'compare' && <ComparePage />}
         {activeTab === 'individual' && <div className="page-full-flush"><IndividualPage /></div>}
       </div>
     </>

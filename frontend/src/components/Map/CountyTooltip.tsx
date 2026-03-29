@@ -1,4 +1,4 @@
-import type { CountyRecord, MapMode, SimulationResponse } from '../../types';
+import type { CountyRecord } from '../../types';
 import { HEALTH_METRIC_LABELS, HEALTH_METRIC_UNITS } from '../../types';
 
 interface Props {
@@ -6,12 +6,10 @@ interface Props {
   y: number;
   county: CountyRecord;
   selectedMetric: string;
-  mapMode: MapMode;
-  resultsByFips: Map<string, SimulationResponse['results'][0]>;
+  isMatchedCounty: boolean;
 }
 
-export default function CountyTooltip({ x, y, county, selectedMetric, resultsByFips }: Props) {
-  const result = resultsByFips.get(county.fips);
+export default function CountyTooltip({ x, y, county, selectedMetric, isMatchedCounty }: Props) {
   const val = (county.health as Record<string, number>)[selectedMetric];
   const unit = HEALTH_METRIC_UNITS[selectedMetric] ?? '%';
   const label = HEALTH_METRIC_LABELS[selectedMetric] ?? selectedMetric;
@@ -26,6 +24,9 @@ export default function CountyTooltip({ x, y, county, selectedMetric, resultsByF
       style={{ left, top }}
     >
       <div className="tooltip-title">{county.name}, {county.state}</div>
+      {isMatchedCounty && (
+        <div className="tooltip-pill">Patient anchor county</div>
+      )}
       <div className="tooltip-row">
         <span>{label}</span>
         <span className="tooltip-val">{val?.toFixed(1)}{unit}</span>
@@ -42,24 +43,12 @@ export default function CountyTooltip({ x, y, county, selectedMetric, resultsByF
         <span>% Poverty</span>
         <span className="tooltip-val">{county.demographics.pctPoverty}%</span>
       </div>
-      {result && (
-        <>
-          <div style={{ height: 4 }} />
-          <div className="tooltip-row">
-            <span>Projected Change</span>
-            <span className={`tooltip-val ${(result.absoluteChange[selectedMetric] ?? 0) < 0 ? 'change-positive' : 'change-negative'}`}>
-              {(result.absoluteChange[selectedMetric] ?? 0) > 0 ? '+' : ''}
-              {result.absoluteChange[selectedMetric]?.toFixed(2)}{unit}
-            </span>
-          </div>
-          <div className="tooltip-row">
-            <span>QALYs Gained</span>
-            <span className="tooltip-val num-accent">{result.qalysGained.toLocaleString()}</span>
-          </div>
-        </>
-      )}
+      <div className="tooltip-row">
+        <span>Diabetes rate</span>
+        <span className="tooltip-val">{county.health.diabetes.toFixed(1)}%</span>
+      </div>
       <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 6 }}>
-        Click for full county profile →
+        Click for county context →
       </div>
     </div>
   );

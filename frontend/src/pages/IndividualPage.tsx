@@ -1,9 +1,9 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useStore } from '../store/useStore';
 import { generatePatientTimeline, getSimilarityScore } from '../api/client';
-import type { TimelineEvent, SimilarityResult } from '../api/client';
+import type { TimelineEvent } from '../api/client';
 import { runDemographicEngine } from '../utils/demographicEngine';
-import type { DemographicInsight } from '../types';
+import type { DemographicInsight, SimilarityResult } from '../types';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface PatientProfile {
@@ -28,16 +28,6 @@ const MOCK_HISTORY = `PATIENT MEDICAL RECORD — Marcus Williams, DOB 1973-04-12
 - 2021 (Age 48): ER visit chest tightness. Ruled out STEMI, diagnosed unstable angina.
 - 2023 (Age 50): Peripheral neuropathy symptoms. Early diabetic retinopathy bilateral.
 - 2025 (Age 52): Current. HbA1c 8.6%. BP 152/96 on medication. Active smoker. Sedentary.`;
-
-// ── Available interventions for simulation ─────────────────────────────────
-const INTERVENTIONS = [
-  { id: 'smoking_cessation', name: 'Smoking Cessation Program', description: 'Structured counseling, NRT patches, and pharmacotherapy to achieve cessation within 3 months.' },
-  { id: 'diabetes_management', name: 'Intensive Diabetes Management', description: 'CGM device, dietary counseling, HbA1c target <7%, medication optimization.' },
-  { id: 'cardiac_rehab', name: 'Cardiac Rehabilitation', description: 'Supervised exercise program, dietary counseling, medication adherence for 12 weeks.' },
-  { id: 'hypertension_control', name: 'Hypertension Control Protocol', description: 'Home BP monitoring, medication titration, low-sodium DASH diet, monthly check-ins.' },
-  { id: 'nutrition_counseling', name: 'Medical Nutrition Therapy', description: 'Registered dietitian sessions, glycemic index reduction, 10% weight loss goal.' },
-  { id: 'physical_activity', name: 'Structured Physical Activity', description: 'Physician-prescribed 150 min/week moderate exercise with fitness tracker.' },
-];
 
 const ETHNICITY_OPTIONS = [
   { label: "Hispanic / Latino", value: "Hispanic (All Races)" },
@@ -74,13 +64,12 @@ export default function IndividualPage() {
   const [similarity, setSimilarity] = useState<SimilarityResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeInterventions, setActiveInterventions] = useState<Set<string>>(new Set());
-  const [showInterventionPanel, setShowInterventionPanel] = useState(false);
-  const [reloading, setReloading] = useState(false);
   const [insight, setInsight] = useState<DemographicInsight | null>(null);
   const [showInsights, setShowInsights] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const counties = useStore(s => s.counties);
+  const setPatientContext = useStore(s => s.setPatientContext);
+  const setActiveTab = useStore(s => s.setActiveTab);
   const [showAutocomplete, setShowAutocomplete] = useState(false);
 
   const [showEthAutocomplete, setShowEthAutocomplete] = useState(false);
@@ -99,6 +88,11 @@ export default function IndividualPage() {
       .slice(0, 10);
   }, [profile.location, counties]);
 
+  const matchedCounty = useMemo(
+    () => counties.find(c => `${c.name}, ${c.stateName}` === profile.location) ?? null,
+    [counties, profile.location]
+  );
+
   function calcBMI(): string {
     const h = (parseFloat(profile.heightFt) * 12) + parseFloat(profile.heightIn);
     const lbs = parseFloat(profile.weightLbs);
@@ -115,11 +109,9 @@ export default function IndividualPage() {
     if (!profile.age || !profile.name) { setError('Please enter a patient name and age.'); return; }
     setLoading(true); setError(null); setTimeline(null); setSimilarity(null);
     setInsight(null); setShowInsights(false);
-    setActiveInterventions(new Set()); setShowInterventionPanel(false);
+    setPatientContext(null);
     try {
       const bmi = calcBMI();
-      // Match county
-      const matchedCounty = counties.find(c => `${c.name}, ${c.stateName}` === profile.location);
       const stateFallback = matchedCounty ? matchedCounty.stateName : profile.location.split(',')[1]?.trim() || profile.location;
 
       const [timelineRes, simRes] = await Promise.all([
@@ -143,9 +135,10 @@ export default function IndividualPage() {
       setSimilarity(simRes);
       // Community health equity engine (client-side, synchronous)
       const bmiNum = bmi ? parseFloat(bmi) : null;
-      if (matchedCounty) {
+      const countyForInsight = matchedCounty ?? (simRes ? counties.find(c => c.fips === simRes.county.fips) ?? null : null);
+      if (countyForInsight) {
         setInsight(runDemographicEngine({
-          matchedCounty,
+          matchedCounty: countyForInsight,
           allCounties: counties,
           ethnicity: profile.ethnicity,
           bmi: bmiNum,
@@ -156,37 +149,21 @@ export default function IndividualPage() {
       } else {
         setInsight(null);
       }
+
+      setPatientContext({
+        patientName: profile.name,
+        patientAge: profile.age ? parseInt(profile.age) : null,
+        patientEthnicity: profile.ethnicity,
+        bmi: bmi ? parseFloat(bmi) : null,
+        smoker: profile.smoker,
+        locationLabel: profile.location,
+        matchedCountyFips: simRes?.county.fips ?? matchedCounty?.fips ?? null,
+        matchedCountyName: simRes?.county.name ?? matchedCounty?.name ?? null,
+        matchedCountyState: simRes?.county.state ?? matchedCounty?.state ?? null,
+        similarity: simRes,
+      });
     } catch (err) { setError(String(err)); }
     finally { setLoading(false); }
-  }
-
-  async function handleSimulateInterventions() {
-    if (!timeline || activeInterventions.size === 0) return;
-    setReloading(true); setError(null);
-    try {
-      const bmi = calcBMI();
-      const selected = INTERVENTIONS.filter(i => activeInterventions.has(i.id))
-        .map(i => ({ name: i.name, description: i.description }));
-      const res = await generatePatientTimeline({
-        profile: {
-          name: profile.name, age: parseInt(profile.age), sex: profile.sex,
-          bmi: bmi || undefined, ethnicity: profile.ethnicity || undefined,
-          smoker: profile.smoker, familyHistory: profile.familyHistory || undefined,
-        },
-        medicalHistory,
-        interventions: selected,
-      });
-      setTimeline(res.timeline);
-    } catch (err) { setError(String(err)); }
-    finally { setReloading(false); }
-  }
-
-  function toggleIntervention(id: string) {
-    setActiveInterventions(prev => {
-      const n = new Set(prev);
-      if (n.has(id)) n.delete(id); else n.add(id);
-      return n;
-    });
   }
 
   const bmi = calcBMI();
@@ -379,7 +356,7 @@ export default function IndividualPage() {
             <div className="timeline-empty-title">Your patient timeline will appear here</div>
             <div className="timeline-empty-sub">
               Fill in the profile and click "Generate Health Timeline" — Lava will analyze the records
-              and map a personalized chronological timeline with risk similarity analysis.
+              and map the patient story against county and national health context.
             </div>
             <button className="btn-mock-large" onClick={() => { loadMock(); }}>
               ⚡ Load Demo Patient
@@ -404,50 +381,89 @@ export default function IndividualPage() {
                 <p className="timeline-patient-meta">
                   {profile.age}yo · {profile.sex} · {profile.ethnicity || 'Patient'}
                   {profile.location && <> · {profile.location}</>}
-                  {activeInterventions.size > 0 && timeline.some(e => e.avoided) && (
-                    <span className="avoided-badge">✓ Risk profile improved with {activeInterventions.size} intervention{activeInterventions.size > 1 ? 's' : ''}</span>
-                  )}
                 </p>
               </div>
-              <button className="btn-simulate-interventions"
-                onClick={() => setShowInterventionPanel(p => !p)}>
-                {showInterventionPanel ? '✕ Close' : '⚕ Simulate Preventions'}
+              <button
+                className="btn-simulate-interventions"
+                onClick={() => setActiveTab('map')}
+              >
+                ↗ View Population Context
               </button>
             </div>
 
-            {/* Similarity Score Card */}
+            {/* Diabetes context explainer */}
             {similarity && (
-              <div className="similarity-card">
-                <div className="similarity-left">
-                  <div className="similarity-score-ring">
-                    <svg viewBox="0 0 80 80" style={{ position: 'absolute', inset: 0 }}>
-                      <circle cx="40" cy="40" r="33" fill="none" stroke="rgba(255,155,61,0.15)" strokeWidth="6" />
-                      <circle cx="40" cy="40" r="33" fill="none" stroke="#FF9B3D" strokeWidth="6"
-                        strokeDasharray={`${2 * Math.PI * 33}`}
-                        strokeDashoffset={`${2 * Math.PI * 33 * (1 - similarity.score / 100)}`}
-                        strokeLinecap="round" transform="rotate(-90 40 40)" />
+              <div className="diabetes-context-card">
+                <div className="diabetes-context-summary">
+                  <div className="diabetes-context-ring">
+                    <svg viewBox="0 0 96 96" style={{ position: 'absolute', inset: 0 }}>
+                      <circle cx="48" cy="48" r="38" fill="none" stroke="rgba(255,155,61,0.12)" strokeWidth="8" />
+                      <circle
+                        cx="48"
+                        cy="48"
+                        r="38"
+                        fill="none"
+                        stroke="#FF9B3D"
+                        strokeWidth="8"
+                        strokeDasharray={`${2 * Math.PI * 38}`}
+                        strokeDashoffset={`${2 * Math.PI * 38 * (1 - similarity.score / 100)}`}
+                        strokeLinecap="round"
+                        transform="rotate(-90 48 48)"
+                      />
                     </svg>
-                    <span className="similarity-score-num">{similarity.score}%</span>
+                    <span className="diabetes-context-score">{similarity.score}%</span>
                   </div>
-                  <div className="similarity-label-block">
-                    <div className="similarity-headline">Risk Profile Similarity</div>
-                    <div className="similarity-subhead">
-                      to confirmed diabetes cases in {similarity.county.name}, {similarity.county.state}
+                  <div className="diabetes-context-copy">
+                    <div className="diabetes-context-kicker">Diabetes-Focused Context Layer</div>
+                    <h3 className="diabetes-context-title">{similarity.title}</h3>
+                    <p className="diabetes-context-subhead">{similarity.summary}</p>
+                    <p className="diabetes-context-note">{similarity.interpretation}</p>
+                    <div className="diabetes-context-badges">
+                      <span className="diabetes-context-chip">
+                        {similarity.matchedBy === 'patient_county' ? 'Patient county anchor' : 'State-demographic fallback'}
+                      </span>
+                      <span className="diabetes-context-chip muted">Contextual signal, not diagnosis</span>
                     </div>
                   </div>
                 </div>
-                <div className="similarity-stats">
-                  <div className="sim-stat">
-                    <span className="sim-stat-val">{similarity.countyDiabetesRate}%</span>
-                    <span className="sim-stat-label">County diabetes rate</span>
+                <div className="diabetes-context-breakdown">
+                  <div className="diabetes-context-breakdown-head">
+                    <span>What is driving the match</span>
+                    <span className="diabetes-context-caveat">{similarity.caveat}</span>
                   </div>
-                  <div className="sim-stat">
-                    <span className="sim-stat-val">{similarity.countyObesityRate}%</span>
-                    <span className="sim-stat-label">County obesity rate</span>
+                  {similarity.factors.map(factor => (
+                    <div key={factor.id} className="diabetes-factor-row">
+                      <div className="diabetes-factor-copy">
+                        <div className="diabetes-factor-header">
+                          <span className="diabetes-factor-label">{factor.label}</span>
+                          <span className="diabetes-factor-value">{factor.displayValue}</span>
+                        </div>
+                        <div className="diabetes-factor-bar">
+                          <span style={{ width: `${Math.max(8, factor.normalizedValue * 100)}%` }} />
+                        </div>
+                        <p className="diabetes-factor-explainer">
+                          {factor.explanation} Weight {(factor.weight * 100).toFixed(0)}%.
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="diabetes-context-stats">
+                  <div className="diabetes-context-stat">
+                    <span className="diabetes-context-stat-value">{similarity.countyDiabetesRate}%</span>
+                    <span className="diabetes-context-stat-label">County diabetes prevalence</span>
                   </div>
-                  <div className="sim-stat">
-                    <span className="sim-stat-val">{(similarity.population / 1000).toFixed(0)}k</span>
-                    <span className="sim-stat-label">Reference population</span>
+                  <div className="diabetes-context-stat">
+                    <span className="diabetes-context-stat-value">{similarity.countyObesityRate}%</span>
+                    <span className="diabetes-context-stat-label">County obesity rate</span>
+                  </div>
+                  <div className="diabetes-context-stat">
+                    <span className="diabetes-context-stat-value">{similarity.countyPhysicalInactivityRate}%</span>
+                    <span className="diabetes-context-stat-label">Physical inactivity</span>
+                  </div>
+                  <div className="diabetes-context-stat">
+                    <span className="diabetes-context-stat-value">{(similarity.population / 1000).toFixed(0)}k</span>
+                    <span className="diabetes-context-stat-label">Reference population</span>
                   </div>
                 </div>
               </div>
@@ -482,52 +498,6 @@ export default function IndividualPage() {
             )}
 
             <div className="timeline-stage-shell">
-              {showInterventionPanel && (
-                <>
-                  <button
-                    type="button"
-                    className="timeline-overlay-backdrop"
-                    aria-label="Close intervention simulation panel"
-                    onClick={() => setShowInterventionPanel(false)}
-                  />
-                  <div className="intervention-sim-panel">
-                    <div className="intervention-panel-topline">
-                      <span className="intervention-strip-label">Prevention Studio</span>
-                      <span className="intervention-panel-count">{activeInterventions.size} selected</span>
-                    </div>
-                    <div className="intervention-panel-title">Model alternate futures without shifting the timeline canvas.</div>
-                    <div className="intervention-panel-subtitle">
-                      Choose interventions, then re-run the patient projection against the current record and county profile.
-                    </div>
-                    <div className="intervention-chips">
-                      {INTERVENTIONS.map(intv => (
-                        <button
-                          key={intv.id}
-                          className={`intervention-chip${activeInterventions.has(intv.id) ? ' active' : ''}`}
-                          onClick={() => toggleIntervention(intv.id)}
-                          title={intv.description}
-                        >
-                          <span className="intervention-chip-check">{activeInterventions.has(intv.id) ? '✓' : '+'}</span>
-                          {intv.name}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="intervention-panel-footer">
-                      <div className="intervention-panel-note">
-                        {activeInterventions.size > 0
-                          ? 'Selected interventions will mark prevented outcomes directly on the future path.'
-                          : 'Pick at least one intervention to compare the projected risk horizon.'}
-                      </div>
-                      <button className="btn-reevaluate" onClick={handleSimulateInterventions} disabled={reloading || activeInterventions.size === 0}>
-                        {reloading
-                          ? <><div className="btn-spinner btn-spinner-sm" />Re-evaluating risk profile…</>
-                          : `↺ Apply ${activeInterventions.size} intervention${activeInterventions.size > 1 ? 's' : ''}`}
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-
               {/* 2D Horizontal Timeline Canvas */}
               <HorizontalTimeline events={timeline} />
             </div>

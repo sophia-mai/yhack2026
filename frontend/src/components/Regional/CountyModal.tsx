@@ -1,18 +1,17 @@
-import type { CountyRecord, SimulationResponse } from '../../types';
+import type { CountyRecord } from '../../types';
 import { HEALTH_METRIC_LABELS, HEALTH_METRIC_UNITS } from '../../types';
 import { useStore } from '../../store/useStore';
 
 interface Props {
   county: CountyRecord;
   onClose: () => void;
-  resultsByFips: Map<string, SimulationResponse['results'][0]>;
 }
 
 const METRICS = ['obesity', 'smoking', 'diabetes', 'physicalInactivity', 'mentalHealth', 'heartDisease', 'copd', 'checkups'];
 
-export default function CountyModal({ county, onClose, resultsByFips }: Props) {
-  const result = resultsByFips.get(county.fips);
-  const { addIntervention } = useStore();
+export default function CountyModal({ county, onClose }: Props) {
+  const { patientContext, selectedMetric } = useStore();
+  const isMatchedCounty = patientContext?.matchedCountyFips === county.fips;
 
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -33,7 +32,6 @@ export default function CountyModal({ county, onClose, resultsByFips }: Props) {
           {METRICS.map(m => {
             const val = (county.health as Record<string, number>)[m];
             const unit = HEALTH_METRIC_UNITS[m] ?? '%';
-            const change = result?.absoluteChange[m];
             const pctRange = m === 'checkups' ? [10, 70] : m === 'mortalityRate' ? [3000, 20000] : m === 'heartDisease' ? [25, 60] : [5, 50];
             const pct = ((val - Number(pctRange[0])) / (Number(pctRange[1]) - Number(pctRange[0]))) * 100;
             return (
@@ -47,14 +45,6 @@ export default function CountyModal({ county, onClose, resultsByFips }: Props) {
                 </div>
                 <span className="impact-bar-val">
                   {val.toFixed(1)}{unit}
-                  {change !== undefined && (
-                    <span style={{
-                      marginLeft: 4, fontSize: 10,
-                      color: (m === 'checkups' ? change > 0 : change < 0) ? 'var(--accent-primary)' : 'var(--accent-coral)'
-                    }}>
-                      {change > 0 ? '▲' : '▼'}{Math.abs(change).toFixed(1)}
-                    </span>
-                  )}
                 </span>
               </div>
             );
@@ -92,30 +82,25 @@ export default function CountyModal({ county, onClose, resultsByFips }: Props) {
           </div>
         </div>
 
-        {/* Simulation Result */}
-        {result && (
-          <>
-            <div className="section-label" style={{ marginBottom: 12 }}>Simulation Impact</div>
-            <div className="metrics-grid" style={{ marginBottom: 20 }}>
-              <div className="metric-tile" style={{ borderColor: 'rgba(0,212,170,0.3)' }}>
-                <div className="metric-tile-value num-accent">{result.qalysGained.toLocaleString()}</div>
-                <div className="metric-tile-label">QALYs Gained</div>
-              </div>
-              <div className="metric-tile">
-                <div className="metric-tile-value">${result.costPerQaly.toLocaleString()}</div>
-                <div className="metric-tile-label">Cost / QALY</div>
-              </div>
+        <div className="section-label" style={{ marginBottom: 12 }}>Interpretation Notes</div>
+        <div className="card" style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
+            {isMatchedCounty
+              ? 'This county is currently acting as the patient anchor. Use it to explain how the individual case fits within local disease burden and community conditions.'
+              : 'Use this county as a comparison point to see how the selected metric and community conditions differ from the patient anchor or national baseline.'}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 12 }}>
+            <span style={{ color: 'var(--text-dim)' }}>Current map metric</span>
+            <strong>{HEALTH_METRIC_LABELS[selectedMetric]}</strong>
+          </div>
+          {isMatchedCounty && (
+            <div style={{ fontSize: 11, color: 'var(--accent-primary)' }}>
+              Patient anchor county
             </div>
-          </>
-        )}
+          )}
+        </div>
 
         <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={() => { addIntervention('preventive_screenings'); onClose(); }}
-          >
-            + Add Preventive Screening here
-          </button>
           <button className="btn btn-ghost btn-sm" onClick={onClose}>Close</button>
         </div>
       </div>

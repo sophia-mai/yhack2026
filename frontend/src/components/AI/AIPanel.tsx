@@ -1,75 +1,81 @@
 import { useEffect, useRef, useState } from 'react';
-import { useStore } from '../../store/useStore';
-import { streamAISummary } from '../../api/client';
+import { getPopulationInsight } from '../../api/client';
+import type { CountyRecord, HealthMetric } from '../../types';
+import { HEALTH_METRIC_LABELS } from '../../types';
 
-export default function AIPanel() {
-  const { simulationResult, activeInterventions, interventions, objective } = useStore();
+interface Props {
+  county: CountyRecord | null;
+  metric: HealthMetric;
+  value: number | null;
+  percentile: number | null;
+  stateAverage: number | null;
+  nationalAverage: number | null;
+  matchedCountyLabel?: string | null;
+  patientLabel?: string | null;
+}
+
+export default function AIPanel({
+  county,
+  metric,
+  value,
+  percentile,
+  stateAverage,
+  nationalAverage,
+  matchedCountyLabel,
+  patientLabel,
+}: Props) {
   const [text, setText] = useState('');
-  const [isStreaming, setIsStreaming] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
-  const canGenerate = !!simulationResult && !isStreaming;
+  const canGenerate = !!county && value !== null && percentile !== null && !isLoading;
 
-  function handleGenerate() {
-    if (!simulationResult || isStreaming) return;
-    setText('');
-    setIsStreaming(true);
-
-    const enrichedInterventions = activeInterventions.map(ai => {
-      const def = interventions.find(i => i.id === ai.id);
-      return { ...ai, name: def?.name ?? ai.id, icon: def?.icon ?? '' };
-    });
-
-    streamAISummary(
-      {
-        simulationSummary: simulationResult.summary as unknown as Record<string, unknown>,
-        interventions: enrichedInterventions,
-        objective,
-        countyCount: simulationResult.summary.countiesAnalyzed,
-      },
-      (chunk) => {
-        setText(prev => prev + chunk);
-        // Auto-scroll
-        if (contentRef.current) {
-          contentRef.current.scrollTop = contentRef.current.scrollHeight;
-        }
-      },
-      () => { setIsStreaming(false); setHasLoaded(true); },
-      (err) => { setIsStreaming(false); setText(prev => prev + `\n\n⚠️ Error: ${err}`); }
-    );
+  async function handleGenerate() {
+    if (!county || value === null || percentile === null || isLoading) return;
+    setIsLoading(true);
+    try {
+      const res = await getPopulationInsight({
+        county: `${county.name}, ${county.state}`,
+        metric: HEALTH_METRIC_LABELS[metric] ?? metric,
+        value,
+        percentile,
+        stateAverage: stateAverage ?? undefined,
+        nationalAverage: nationalAverage ?? undefined,
+        matchedCounty: matchedCountyLabel ?? undefined,
+        patientLabel: patientLabel ?? undefined,
+      });
+      setText(res.insight);
+      setHasLoaded(true);
+      if (contentRef.current) {
+        contentRef.current.scrollTop = 0;
+      }
+    } catch (err) {
+      setText(`Unable to generate trend synthesis: ${String(err)}`);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
-  // Auto-generate when simulation runs
   useEffect(() => {
-    if (simulationResult && !hasLoaded) {
+    setText('');
+    setHasLoaded(false);
+  }, [county?.fips, metric]);
+
+  useEffect(() => {
+    if (county && value !== null && percentile !== null && !hasLoaded) {
       handleGenerate();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [simulationResult]);
-
-  // Reset when sim changes
-  useEffect(() => {
-    setHasLoaded(false);
-    setText('');
-  }, [simulationResult]);
-
-  // Format markdown-ish text
-  function formatText(t: string) {
-    return t
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/##\s(.+)/g, '<br/><strong style="color:var(--text-primary);font-size:13px">$1</strong><br/>')
-      .replace(/\d+\.\s\*\*(.*?)\*\*/g, '<br/><strong>$1</strong>')
-      .replace(/- /g, '• ');
-  }
+  }, [county?.fips, metric, value, percentile]);
 
   return (
     <div className="ai-panel">
       <div className="panel-header">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <div className="panel-title">🤖 AI Policy Analyst</div>
-            <div className="panel-subtitle">Lava · Simulation insights</div>
+            <div className="panel-title">AI Trend Synthesis</div>
+            <div className="panel-subtitle">Aggregate county signal, framed for interpretation</div>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             {hasLoaded && (
@@ -81,36 +87,44 @@ export default function AIPanel() {
               className="btn btn-ghost btn-sm"
               onClick={handleGenerate}
               disabled={!canGenerate}
-              id="ai-generate-btn"
             >
-              {isStreaming ? '…' : '↺ Generate'}
+              {isLoading ? '…' : '↺ Refresh'}
             </button>
           </div>
         </div>
-        {isStreaming && <div className="loading-bar" style={{ marginTop: 8 }} />}
+        {isLoading && <div className="loading-bar" style={{ marginTop: 8 }} />}
       </div>
 
       <div className="ai-content" ref={contentRef}>
-        {!simulationResult && !isStreaming && (
+        {!county && !isLoading && (
           <div className="ai-placeholder">
-            <div className="ai-placeholder-icon">🧬</div>
+            <div className="ai-placeholder-icon">🧭</div>
             <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>
-              AI Summary Pending
+              Select a county
             </div>
             <div style={{ fontSize: 12, lineHeight: 1.6 }}>
-              Run a simulation to get Lava-powered policy insights, equity analysis, and recommendations.
+              Choose a county on the map to generate a short synthesis of how the selected trend compares to broader context.
             </div>
           </div>
         )}
 
-        {(text || isStreaming) && (
-          <div
-            dangerouslySetInnerHTML={{ __html: formatText(text) }}
-            style={{ whiteSpace: 'pre-wrap' }}
-          />
+        {county && !text && !isLoading && (
+          <div className="ai-placeholder">
+            <div className="ai-placeholder-icon">🧠</div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>
+              Trend synthesis ready
+            </div>
+            <div style={{ fontSize: 12, lineHeight: 1.6 }}>
+              Generate a concise AI summary to explain what the selected county and metric mean in context.
+            </div>
+          </div>
         )}
 
-        {isStreaming && <span className="ai-typing-cursor" />}
+        {text && (
+          <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
+            {text}
+          </div>
+        )}
       </div>
     </div>
   );

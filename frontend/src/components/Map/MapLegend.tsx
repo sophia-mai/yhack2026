@@ -10,8 +10,7 @@ interface Props {
 
 export default function MapLegend({ colorScale, selectedMetric, mapMode }: Props) {
   const label = mapMode === 'vulnerability' ? 'Social Vulnerability Index'
-    : mapMode === 'equity' ? '% in Poverty'
-    : mapMode === 'impact' ? `${HEALTH_METRIC_LABELS[selectedMetric] ?? selectedMetric} — Change`
+    : mapMode === 'equity' ? `Context lens for ${HEALTH_METRIC_LABELS[selectedMetric] ?? selectedMetric}`
     : HEALTH_METRIC_LABELS[selectedMetric] ?? selectedMetric;
 
   const domain = colorScale.domain();
@@ -49,18 +48,11 @@ export default function MapLegend({ colorScale, selectedMetric, mapMode }: Props
           </svg>
         </div>
         <div className="legend-labels">
-          <span>{lo.toFixed(mapMode === 'impact' ? 2 : 1)}</span>
-          {domain.length === 3 && <span>{Number(domain[1]).toFixed(2)}</span>}
-          <span>{hi.toFixed(mapMode === 'impact' ? 2 : 1)}</span>
+          <span>{lo.toFixed(1)}</span>
+          {domain.length === 3 && <span>{Number(domain[1]).toFixed(1)}</span>}
+          <span>{hi.toFixed(1)}</span>
         </div>
       </div>
-
-      {mapMode === 'impact' && (
-        <div style={{ fontSize: 10, color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <span style={{ color: 'var(--accent-primary)' }}>● Better</span>
-          <span style={{ color: 'var(--accent-coral)' }}>● Worse</span>
-        </div>
-      )}
     </div>
   );
 }

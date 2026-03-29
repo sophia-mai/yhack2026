@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type {
   CountyRecord, Intervention, InterventionInput, SimulationResponse,
-  HealthMetric, MapMode, TabId
+  HealthMetric, MapMode, PatientContextSnapshot, TabId
 } from '../types';
 
 interface AppState {
@@ -46,6 +46,10 @@ interface AppState {
   // Navigation
   activeTab: TabId;
   setActiveTab: (t: TabId) => void;
+
+  // Shared patient context
+  patientContext: PatientContextSnapshot | null;
+  setPatientContext: (context: PatientContextSnapshot | null) => void;
 
   // Comparison mode
   scenarioA: InterventionInput[];
@@ -113,8 +117,11 @@ export const useStore = create<AppState>((set, get) => ({
   setIsSimulating: (isSimulating) => set({ isSimulating }),
   resultsByFips: new Map(),
 
-  activeTab: 'map',
+  activeTab: 'individual',
   setActiveTab: (activeTab) => set({ activeTab }),
+
+  patientContext: null,
+  setPatientContext: (patientContext) => set({ patientContext }),
 
   scenarioA: [],
   scenarioB: [],

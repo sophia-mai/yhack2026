@@ -15,7 +15,7 @@ export default function USMap() {
   const containerRef = useRef<HTMLDivElement>(null);
   const {
     counties, selectedMetric, mapMode, resultsByFips,
-    setHoveredFips, setSelectedCounty, selectedCounty,
+    setHoveredFips, setSelectedCounty, selectedCounty, patientContext,
   } = useStore();
 
   const [topoData, setTopoData] = useState<object | null>(null);
@@ -186,6 +186,30 @@ export default function USMap() {
       .attr('fill', d => getCountyColor(String(d.id).padStart(5, '0')));
   }, [getCountyColor]);
 
+  useEffect(() => {
+    if (!svgRef.current) return;
+    d3.select(svgRef.current)
+      .selectAll<SVGPathElement, GeoJSON.Feature>('.county-path')
+      .attr('stroke', d => {
+        const fips = String(d.id).padStart(5, '0');
+        if (selectedCounty?.fips === fips) return 'rgba(255, 255, 255, 0.92)';
+        if (patientContext?.matchedCountyFips === fips) return 'rgba(0, 212, 170, 0.9)';
+        return 'rgba(255, 255, 255, 0.04)';
+      })
+      .attr('stroke-width', d => {
+        const fips = String(d.id).padStart(5, '0');
+        if (selectedCounty?.fips === fips) return 1.8;
+        if (patientContext?.matchedCountyFips === fips) return 1.4;
+        return 0.3;
+      })
+      .attr('filter', d => {
+        const fips = String(d.id).padStart(5, '0');
+        if (selectedCounty?.fips === fips) return 'drop-shadow(0 0 10px rgba(255,255,255,0.35))';
+        if (patientContext?.matchedCountyFips === fips) return 'drop-shadow(0 0 10px rgba(0,212,170,0.45))';
+        return null;
+      });
+  }, [patientContext?.matchedCountyFips, selectedCounty?.fips]);
+
   return (
     <div ref={containerRef} className="map-container" style={{ position: 'relative' }}>
       {counties.length === 0 && (
@@ -207,8 +231,7 @@ export default function USMap() {
           y={tooltip.y}
           county={tooltip.county}
           selectedMetric={selectedMetric}
-          mapMode={mapMode}
-          resultsByFips={resultsByFips}
+          isMatchedCounty={patientContext?.matchedCountyFips === tooltip.county.fips}
         />
       )}
 
@@ -218,7 +241,6 @@ export default function USMap() {
         <CountyModal
           county={selectedCounty}
           onClose={() => setSelectedCounty(null)}
-          resultsByFips={resultsByFips}
         />
       )}
     </div>

@@ -114,15 +114,24 @@ router.post('/summarize', async (req, res) => {
 // POST /api/ai/insight — non-streaming quick insight
 router.post('/insight', async (req, res) => {
   try {
-    const { county, metric, value, percentile } = req.body;
+    const {
+      county,
+      metric,
+      value,
+      percentile,
+      stateAverage,
+      nationalAverage,
+      matchedCounty,
+      patientLabel,
+    } = req.body;
 
     const insight = await callLavaWithFallback({
       primaryModel: FAST_MODEL,
       fallbackModel: SUMMARY_MODEL,
-      maxTokens: 180,
+      maxTokens: 220,
       messages: [{
         role: 'user',
-        content: `In 2 sentences, explain the public health significance of ${county} having a ${metric} rate of ${value}% (${percentile}th percentile nationally). Focus on impact and actionable framing.`,
+        content: `Write 2-3 sentences for a doctor or analyst looking at county-level health data. County: ${county}. Metric: ${metric}. County value: ${value}. National percentile: ${percentile}. State average: ${stateAverage ?? 'unknown'}. National average: ${nationalAverage ?? 'unknown'}. Matched patient county: ${matchedCounty || 'not provided'}. Patient anchor: ${patientLabel || 'not provided'}. Explain what stands out, how it compares to broader context, and one practical interpretation. Avoid hype and avoid pretending this is a diagnosis.`,
       }],
     });
 
@@ -229,7 +238,7 @@ Return JSON array only.`;
 router.post('/similarity-score', (req, res) => {
   try {
     const { profile } = req.body;
-    // profile: { age, sex, ethnicity, bmi, smoker, state }
+    // profile: { age, sex, ethnicity, bmi, smoker, state, countyFips }
     const counties = getCountyData();
 
     // 1. Narrow to patient's state
@@ -241,8 +250,11 @@ router.post('/similarity-score', (req, res) => {
         )
       : counties;
     const refPool = pool.length > 0 ? pool : counties;
+    const exactCounty = profile.countyFips
+      ? counties.find(c => c.fips === profile.countyFips)
+      : null;
 
-    // 2. Pick county with highest demographic match for patient's ethnicity
+    // 2. Pick county with highest demographic match for patient's ethnicity when no exact county is available
     const ethnLower = (profile.ethnicity || '').toLowerCase();
     const getEthScore = (c: ReturnType<typeof getCountyData>[0]) => {
       if (ethnLower.includes('black') || ethnLower.includes('african')) return c.demographics.pctBlack;
@@ -250,7 +262,8 @@ router.post('/similarity-score', (req, res) => {
       if (ethnLower.includes('white') || ethnLower.includes('caucasian')) return c.demographics.pctWhite;
       return 100 - c.demographics.pctBlack - c.demographics.pctHispanic; // default to majority non-minority
     };
-    const refCounty = refPool.reduce((best, c) => getEthScore(c) > getEthScore(best) ? c : best, refPool[0]);
+    const refCounty = exactCounty
+      ?? refPool.reduce((best, c) => getEthScore(c) > getEthScore(best) ? c : best, refPool[0]);
 
     // 3. Compute similarity to county's diabetic population profile
     const bmi = parseFloat(profile.bmi) || 26;
@@ -283,6 +296,48 @@ router.post('/similarity-score', (req, res) => {
       ageFactor    * 0.15;
 
     const score = Math.round(Math.min(97, Math.max(25, rawScore * 100)));
+    const factors = [
+      {
+        id: 'bmi',
+        label: 'BMI context',
+        normalizedValue: bmiSim,
+        weight: 0.35,
+        displayValue: `${bmi.toFixed(1)} BMI`,
+        explanation: 'Higher BMI raises alignment with aggregate diabetes-related patterns.',
+      },
+      {
+        id: 'smoking',
+        label: 'Smoking status',
+        normalizedValue: smokingSim,
+        weight: 0.20,
+        displayValue: isSmoker ? 'Current smoker' : 'Not currently smoking',
+        explanation: 'Smoking modestly increases alignment with diabetes complication burden.',
+      },
+      {
+        id: 'county_diabetes',
+        label: 'County diabetes burden',
+        normalizedValue: countyFactor,
+        weight: 0.20,
+        displayValue: `${diabPrev.toFixed(1)}% adults with diabetes`,
+        explanation: 'Higher local diabetes prevalence means the surrounding population context is more diabetes-heavy.',
+      },
+      {
+        id: 'county_inactivity',
+        label: 'Physical inactivity context',
+        normalizedValue: inactFactor,
+        weight: 0.10,
+        displayValue: `${(refCounty.health.physicalInactivity || 0).toFixed(1)}% physically inactive`,
+        explanation: 'County inactivity levels add broader lifestyle context around disease burden.',
+      },
+      {
+        id: 'age',
+        label: 'Age context',
+        normalizedValue: ageFactor,
+        weight: 0.15,
+        displayValue: `${age} years old`,
+        explanation: 'Older age increases alignment because diabetes risk rises across adulthood.',
+      },
+    ];
 
     return res.json({
       score,
@@ -290,7 +345,16 @@ router.post('/similarity-score', (req, res) => {
       countyDiabetesRate: parseFloat(diabPrev.toFixed(1)),
       countyObesityRate: parseFloat((refCounty.health.obesity || 0).toFixed(1)),
       countySmokingRate: parseFloat((refCounty.health.smoking || 0).toFixed(1)),
+      countyPhysicalInactivityRate: parseFloat((refCounty.health.physicalInactivity || 0).toFixed(1)),
       population: refCounty.population,
+      matchedBy: exactCounty ? 'patient_county' : 'state_demographic_match',
+      title: 'Diabetes Context Match',
+      summary: exactCounty
+        ? `Compares this patient against diabetes-related population patterns in ${refCounty.name}, ${refCounty.state}.`
+        : `Compares this patient against a diabetes-related reference county in ${refCounty.state} chosen by the entered state and demographic profile.`,
+      interpretation: 'This is a contextual comparison signal built from personal risk markers plus local population burden. It is intended to support clinical interpretation, not replace diagnosis or formal risk scoring.',
+      caveat: 'The score blends patient inputs with aggregate county patterns. It should be read as a context lens, not a probability that a patient has or will develop diabetes.',
+      factors,
     });
   } catch (err) {
     console.error('similarity-score error:', err);

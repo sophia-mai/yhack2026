@@ -159,6 +159,44 @@ export interface SimulationResponse {
   results: SimulationResult[];
 }
 
+export interface SimilarityFactorBreakdown {
+  id: string;
+  label: string;
+  normalizedValue: number;
+  weight: number;
+  displayValue: string;
+  explanation: string;
+}
+
+export interface SimilarityResult {
+  score: number;
+  county: { name: string; state: string; fips: string };
+  countyDiabetesRate: number;
+  countyObesityRate: number;
+  countySmokingRate: number;
+  countyPhysicalInactivityRate: number;
+  population: number;
+  matchedBy: 'patient_county' | 'state_demographic_match';
+  title: string;
+  summary: string;
+  interpretation: string;
+  caveat: string;
+  factors: SimilarityFactorBreakdown[];
+}
+
+export interface PatientContextSnapshot {
+  patientName: string;
+  patientAge: number | null;
+  patientEthnicity: string;
+  bmi: number | null;
+  smoker: boolean;
+  locationLabel: string;
+  matchedCountyFips: string | null;
+  matchedCountyName: string | null;
+  matchedCountyState: string | null;
+  similarity: SimilarityResult | null;
+}
+
 export type HealthMetric = keyof CountyRecord['health'];
 
 export const HEALTH_METRIC_LABELS: Record<string, string> = {
@@ -186,4 +224,4 @@ export const HEALTH_METRIC_UNITS: Record<string, string> = {
 };
 
 export type MapMode = 'baseline' | 'impact' | 'equity' | 'vulnerability';
-export type TabId = 'map' | 'compare' | 'individual';
+export type TabId = 'map' | 'individual';
