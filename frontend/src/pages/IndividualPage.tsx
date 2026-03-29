@@ -92,14 +92,6 @@ export default function IndividualPage() {
     () => counties.find(c => `${c.name}, ${c.stateName}` === profile.location) ?? null,
     [counties, profile.location]
   );
-  const topSimilarityFactors = useMemo(
-    () => similarity
-      ? [...similarity.factors]
-          .sort((a, b) => (b.normalizedValue * b.weight) - (a.normalizedValue * a.weight))
-          .slice(0, 3)
-      : [],
-    [similarity]
-  );
 
   function calcBMI(): string {
     const h = (parseFloat(profile.heightFt) * 12) + parseFloat(profile.heightIn);
@@ -382,7 +374,7 @@ export default function IndividualPage() {
           <div className="timeline-loading">
             <div className="loading-orb" />
             <div className="loading-title">Building patient health context…</div>
-            <div className="loading-sub">Reading medical records, generating the health timeline, and matching against county population data</div>
+            <div className="loading-sub">Lava is reading the records and mapping the health narrative against county and national data</div>
           </div>
         )}
 
@@ -405,7 +397,7 @@ export default function IndividualPage() {
               </button>
             </div>
 
-            {/* Diabetes context explainer */}
+            {/* Diabetes context signal */}
             {similarity && (
               <div className="diabetes-context-card">
                 <div className="diabetes-context-summary">
@@ -413,62 +405,34 @@ export default function IndividualPage() {
                     <svg viewBox="0 0 96 96" style={{ position: 'absolute', inset: 0 }}>
                       <circle cx="48" cy="48" r="38" fill="none" stroke="rgba(255,155,61,0.12)" strokeWidth="8" />
                       <circle
-                        cx="48"
-                        cy="48"
-                        r="38"
-                        fill="none"
-                        stroke="#FF9B3D"
-                        strokeWidth="8"
+                        cx="48" cy="48" r="38" fill="none" stroke="#FF9B3D" strokeWidth="8"
                         strokeDasharray={`${2 * Math.PI * 38}`}
                         strokeDashoffset={`${2 * Math.PI * 38 * (1 - similarity.score / 100)}`}
-                        strokeLinecap="round"
-                        transform="rotate(-90 48 48)"
+                        strokeLinecap="round" transform="rotate(-90 48 48)"
                       />
                     </svg>
                     <span className="diabetes-context-score">{similarity.score}%</span>
                   </div>
                   <div className="diabetes-context-copy">
-                    <div className="diabetes-context-kicker">Diabetes Context</div>
+                    <div className="diabetes-context-kicker">Diabetes Cohort Signal</div>
                     <h3 className="diabetes-context-title">{similarity.title}</h3>
                     <p className="diabetes-context-subhead">
-                      Compared against {similarity.county.name}, {similarity.county.state} population patterns.
+                      {similarity.score >= 70
+                        ? `Strong pattern overlap with the diabetes population in ${similarity.county.name}, ${similarity.county.state}.`
+                        : similarity.score >= 40
+                        ? `Moderate pattern overlap with the diabetes population in ${similarity.county.name}, ${similarity.county.state}.`
+                        : `Limited pattern overlap with the diabetes population in ${similarity.county.name}, ${similarity.county.state}.`}
                     </p>
-                    <div className="diabetes-context-badges">
-                      <span className="diabetes-context-chip">
-                        {similarity.matchedBy === 'patient_county' ? 'Patient county anchor' : 'State-demographic fallback'}
-                      </span>
-                      <span className="diabetes-context-chip muted">Contextual signal, not diagnosis</span>
-                    </div>
                   </div>
-                </div>
-                <div className="diabetes-context-breakdown">
-                  <div className="diabetes-context-breakdown-head">
-                    <span>Top drivers</span>
-                    <span className="diabetes-context-caveat">{similarity.caveat}</span>
-                  </div>
-                  {topSimilarityFactors.map(factor => (
-                    <div key={factor.id} className="diabetes-factor-row">
-                      <div className="diabetes-factor-copy">
-                        <div className="diabetes-factor-header">
-                          <span className="diabetes-factor-label">{factor.label}</span>
-                          <span className="diabetes-factor-value">{factor.displayValue}</span>
-                        </div>
-                        <div className="diabetes-factor-bar">
-                          <span style={{ width: `${Math.max(8, factor.normalizedValue * 100)}%` }} />
-                        </div>
-                        <p className="diabetes-factor-explainer">{(factor.weight * 100).toFixed(0)}% of score</p>
-                      </div>
-                    </div>
-                  ))}
                 </div>
                 <div className="diabetes-context-stats">
                   <div className="diabetes-context-stat">
                     <span className="diabetes-context-stat-value">{similarity.countyDiabetesRate}%</span>
-                    <span className="diabetes-context-stat-label">County diabetes prevalence</span>
+                    <span className="diabetes-context-stat-label">County diabetes rate</span>
                   </div>
                   <div className="diabetes-context-stat">
                     <span className="diabetes-context-stat-value">{similarity.countyObesityRate}%</span>
-                    <span className="diabetes-context-stat-label">County obesity rate</span>
+                    <span className="diabetes-context-stat-label">Obesity rate</span>
                   </div>
                   <div className="diabetes-context-stat">
                     <span className="diabetes-context-stat-value">{similarity.countyPhysicalInactivityRate}%</span>
@@ -828,7 +792,7 @@ function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
     centerEvent(index);
   }, [centerEvent]);
 
-  const detailShouldScroll = focusedEvent.description.length > (compact ? 180 : 260);
+  const detailShouldScroll = focusedEvent.description.length > (compact ? 90 : 120);
 
   return (
     <div ref={wrapperRef} className={`timeline-canvas-wrapper${compact ? ' compact' : ''}`}>
@@ -874,7 +838,7 @@ function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
           <span className={`timeline-card-severity timeline-card-severity-${focusedEvent?.severity}`}>{focusedEvent?.severity}</span>
         </div>
         {focusedIsFuture && !focusedEvent?.avoided && (
-          <div className="timeline-focus-note">Projected context based on the patient profile, prior history, and county population patterns. Not a clinical prediction.</div>
+          <div className="timeline-focus-note">Lava projection — not a clinical prediction.</div>
         )}
       </div>
 
@@ -906,10 +870,6 @@ function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
         aria-label="Patient health timeline"
       >
         <div className="timeline-inner-canvas" style={{ width: canvasWidth, minHeight: layout.minCanvasHeight }}>
-          <div className="timeline-ambient timeline-ambient-left" />
-          <div className="timeline-ambient timeline-ambient-center" />
-          <div className="timeline-ambient timeline-ambient-right" />
-
           <div className="timeline-baseline" style={{ top: layout.lineY, width: Math.max(0, lastNodeX - 72 + 28) }} />
           <div className="timeline-baseline-glow" style={{ top: layout.lineY - 6, width: Math.max(0, lastNodeX - 72 + 28) }} />
 

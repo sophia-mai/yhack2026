@@ -1112,11 +1112,9 @@ select:focus {
   font-size: 11px;
 }
 
-.bar-positive {
-  background: linear-gradient(90deg, var(--accent-primary), #00b890);
-}
+.bar-positive,
 .bar-negative {
-  background: linear-gradient(90deg, var(--accent-coral), #e05555);
+  background: linear-gradient(90deg, rgba(96, 184, 255, 0.7), rgba(96, 184, 255, 0.45));
 }
 
 /* ── Objective Input ─────────────────────────────────── */
@@ -2917,36 +2915,11 @@ input[type="number"]:focus {
   height: 100%;
 }
 
-.timeline-ambient {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(50px);
-  opacity: 0.45;
-  pointer-events: none;
-}
-
-.timeline-ambient-left {
-  top: 80px;
-  left: 140px;
-  width: 240px;
-  height: 240px;
-  background: rgba(61, 142, 255, 0.18);
-}
-
-.timeline-ambient-center {
-  top: 220px;
-  left: calc(50% - 140px);
-  width: 280px;
-  height: 280px;
-  background: rgba(0, 212, 170, 0.14);
-}
-
-.timeline-ambient-right {
-  top: 120px;
-  right: 180px;
-  width: 240px;
-  height: 240px;
-  background: rgba(255, 155, 61, 0.12);
+/* Dotted grid background */
+.timeline-canvas-wrapper {
+  background-image: radial-gradient(circle, rgba(180, 200, 255, 0.07) 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-attachment: local;
 }
 
 .timeline-baseline,
@@ -3209,7 +3182,7 @@ input[type="number"]:focus {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 24px;
   backdrop-filter: blur(20px);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .timeline-focus-row,
@@ -3258,7 +3231,7 @@ input[type="number"]:focus {
 }
 
 .timeline-focus-desc.scrollable {
-  max-height: 108px;
+  max-height: 160px;
   overflow-y: auto;
   padding-right: 6px;
 }
@@ -3423,7 +3396,7 @@ input[type="number"]:focus {
 }
 
 .timeline-canvas-wrapper.compact .timeline-focus-desc.scrollable {
-  max-height: 92px;
+  max-height: 130px;
 }
 
 .timeline-canvas-wrapper.compact .timeline-focus-footer {
@@ -3449,29 +3422,6 @@ input[type="number"]:focus {
   height: 36px;
 }
 
-.timeline-canvas-wrapper.compact .timeline-ambient {
-  opacity: 0.28;
-}
-
-.timeline-canvas-wrapper.compact .timeline-ambient-left {
-  top: 54px;
-  left: 90px;
-  width: 160px;
-  height: 160px;
-}
-
-.timeline-canvas-wrapper.compact .timeline-ambient-center {
-  top: 162px;
-  width: 190px;
-  height: 190px;
-}
-
-.timeline-canvas-wrapper.compact .timeline-ambient-right {
-  top: 78px;
-  right: 100px;
-  width: 160px;
-  height: 160px;
-}
 
 .timeline-canvas-wrapper.compact .timeline-baseline {
   top: 276px;
