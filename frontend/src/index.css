@@ -2997,10 +2997,13 @@ input[type="number"]:focus {
   font-size: 13px;
   line-height: 1.58;
   color: rgba(224, 232, 250, 0.8);
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.timeline-focus-desc.scrollable {
+  max-height: 108px;
+  overflow-y: auto;
+  padding-right: 6px;
 }
 
 .timeline-focus-footer {
@@ -3157,7 +3160,10 @@ input[type="number"]:focus {
   margin-top: 10px;
   font-size: 11px;
   line-height: 1.46;
-  -webkit-line-clamp: 4;
+}
+
+.timeline-canvas-wrapper.compact .timeline-focus-desc.scrollable {
+  max-height: 92px;
 }
 
 .timeline-canvas-wrapper.compact .timeline-focus-footer {

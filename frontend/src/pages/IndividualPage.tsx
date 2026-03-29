@@ -40,14 +40,21 @@ const INTERVENTIONS = [
 ];
 
 // ── Visual config ──────────────────────────────────────────────────────────
-const NODE_CONFIG = {
-  past:        { fill: '#3D4A6E', border: '#5B6A90', glow: 'transparent', label: 'HISTORY' },
-  present:     { fill: '#003D30', border: '#00D4AA', glow: 'rgba(0,212,170,0.4)', label: 'NOW' },
-  predicted:   { fill: '#4A3000', border: '#FF9B3D', glow: 'rgba(255,155,61,0.3)', label: 'RISK' },
-  risk:        { fill: '#4A3000', border: '#FF9B3D', glow: 'rgba(255,155,61,0.3)', label: 'RISK' },
-  warning:     { fill: '#4A0000', border: '#FF5757', glow: 'rgba(255,87,87,0.4)', label: 'HIGH RISK' },
-  intervention:{ fill: '#003040', border: '#60B8FF', glow: 'rgba(96,184,255,0.3)', label: 'INTERVENTION' },
-};
+const SEVERITY_CONFIG = {
+  low: { fill: '#25324D', border: '#7489B7', glow: 'rgba(116,137,183,0.24)' },
+  medium: { fill: '#12344F', border: '#60B8FF', glow: 'rgba(96,184,255,0.28)' },
+  high: { fill: '#4A3000', border: '#FF9B3D', glow: 'rgba(255,155,61,0.3)' },
+  critical: { fill: '#4A0000', border: '#FF5757', glow: 'rgba(255,87,87,0.34)' },
+} as const;
+
+const TYPE_CONFIG = {
+  present: { fill: '#003D30', border: '#00D4AA', glow: 'rgba(0,212,170,0.4)', label: 'NOW' },
+  intervention: { fill: '#003040', border: '#60B8FF', glow: 'rgba(96,184,255,0.3)', label: 'INTERVENTION' },
+  past: { label: 'HISTORY' },
+  predicted: { label: 'PROJECTED' },
+  risk: { label: 'RISK' },
+  warning: { label: 'WARNING' },
+} as const;
 
 const SEVERITY_SIZE: Record<string, number> = {
   low: 32, medium: 32, high: 32, critical: 32,
@@ -502,6 +509,14 @@ function getEventDescriptor(event: TimelineEvent) {
   return 'Recorded history';
 }
 
+function getEventVisual(event: TimelineEvent) {
+  if (event.type === 'present') return TYPE_CONFIG.present;
+  if (event.type === 'intervention') return TYPE_CONFIG.intervention;
+  const severity = SEVERITY_CONFIG[event.severity] ?? SEVERITY_CONFIG.medium;
+  const label = TYPE_CONFIG[event.type as keyof typeof TYPE_CONFIG]?.label ?? 'EVENT';
+  return { ...severity, label };
+}
+
 // ── InsightTile ──────────────────────────────────────────────────────────────
 const ALIGNMENT_CONFIG = {
   higher:  { color: '#FF9B3D', label: 'Higher than county avg', dot: '▲' },
@@ -593,7 +608,7 @@ function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
   }, [events]);
   const focusedIndex = hoveredIndex ?? activeIndex;
   const focusedEvent = events[focusedIndex] ?? events[presentIndex];
-  const focusedCfg = NODE_CONFIG[focusedEvent?.type as keyof typeof NODE_CONFIG] ?? NODE_CONFIG.past;
+  const focusedCfg = getEventVisual(focusedEvent);
   const focusedIsFuture = focusedEvent?.type === 'risk' || focusedEvent?.type === 'predicted' || focusedEvent?.type === 'warning';
   const firstAge = events[0]?.age;
   const lastAge = events[events.length - 1]?.age;
@@ -608,6 +623,7 @@ function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
         previewTop: 122,
         detailWidth: 292,
         detailTop: 22,
+        tailPadding: 280,
         minCanvasHeight: 472,
         nodeScale: 0.88,
       }
@@ -620,10 +636,11 @@ function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
         previewTop: 152,
         detailWidth: 364,
         detailTop: 28,
+        tailPadding: 380,
         minCanvasHeight: 680,
         nodeScale: 1,
       };
-  const canvasWidth = Math.max(compact ? 1180 : 1400, layout.padding * 2 + Math.max(events.length - 1, 0) * layout.gap);
+  const canvasWidth = Math.max(compact ? 1180 : 1400, layout.padding * 2 + Math.max(events.length - 1, 0) * layout.gap + layout.tailPadding);
 
   useEffect(() => {
     if (!wrapperRef.current) return;
@@ -645,11 +662,13 @@ function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
     if (!viewport) return;
     const bounded = Math.max(0, Math.min(events.length - 1, index));
     const targetX = layout.padding + bounded * layout.gap;
+    const safeRightInset = layout.detailWidth + 48;
+    const visibleCenter = Math.max(140, (viewport.clientWidth - safeRightInset) / 2);
     const maxLeft = Math.max(0, canvasWidth - viewport.clientWidth);
-    const nextLeft = Math.max(0, Math.min(maxLeft, targetX - viewport.clientWidth / 2));
+    const nextLeft = Math.max(0, Math.min(maxLeft, targetX - visibleCenter));
     viewport.scrollTo({ left: nextLeft, behavior });
     setActiveIndex(bounded);
-  }, [canvasWidth, events.length, layout.gap, layout.padding]);
+  }, [canvasWidth, events.length, layout.detailWidth, layout.gap, layout.padding]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => centerEvent(presentIndex, 'auto'));
@@ -665,11 +684,13 @@ function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
   const handleScroll = useCallback(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
-    const centerX = viewport.scrollLeft + viewport.clientWidth / 2;
+    const safeRightInset = layout.detailWidth + 48;
+    const visibleCenter = Math.max(140, (viewport.clientWidth - safeRightInset) / 2);
+    const centerX = viewport.scrollLeft + visibleCenter;
     const rawIndex = Math.round((centerX - layout.padding) / layout.gap);
     const nextIndex = Math.max(0, Math.min(events.length - 1, rawIndex));
     setActiveIndex(nextIndex);
-  }, [events.length, layout.gap, layout.padding]);
+  }, [events.length, layout.detailWidth, layout.gap, layout.padding]);
 
   const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
     const viewport = viewportRef.current;
@@ -718,6 +739,8 @@ function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
     centerEvent(index);
   }, [centerEvent]);
 
+  const detailShouldScroll = focusedEvent.description.length > (compact ? 180 : 260);
+
   return (
     <div ref={wrapperRef} className={`timeline-canvas-wrapper${compact ? ' compact' : ''}`}>
       <div className="timeline-stage-hud">
@@ -756,7 +779,7 @@ function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
           <span className="timeline-focus-year">{focusedEvent?.year}</span>
         </div>
         <div className="timeline-focus-title">{focusedEvent?.title}</div>
-        <div className="timeline-focus-desc">{focusedEvent?.description}</div>
+        <div className={`timeline-focus-desc${detailShouldScroll ? ' scrollable' : ''}`}>{focusedEvent?.description}</div>
         <div className="timeline-focus-footer">
           <span className="timeline-focus-age">Age {focusedEvent?.age}</span>
           <span className={`timeline-card-severity timeline-card-severity-${focusedEvent?.severity}`}>{focusedEvent?.severity}</span>
@@ -804,7 +827,7 @@ function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
 
           {events.map((ev, i) => {
             const x = layout.padding + i * layout.gap;
-            const cfg = NODE_CONFIG[ev.type as keyof typeof NODE_CONFIG] ?? NODE_CONFIG.past;
+            const cfg = getEventVisual(ev);
             const size = Math.round((SEVERITY_SIZE[ev.severity] ?? 32) * layout.nodeScale);
             const isFuture = ev.type === 'risk' || ev.type === 'predicted' || ev.type === 'warning';
             const isWarning = ev.severity === 'critical' || ev.type === 'warning';
