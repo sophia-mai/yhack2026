@@ -39,6 +39,16 @@ const INTERVENTIONS = [
   { id: 'physical_activity', name: 'Structured Physical Activity', description: 'Physician-prescribed 150 min/week moderate exercise with fitness tracker.' },
 ];
 
+const ETHNICITY_OPTIONS = [
+  { label: "Hispanic / Latino", value: "Hispanic (All Races)" },
+  { label: "American Indian / Alaska Native", value: "Non-Hispanic American Indian / Alaska Native" },
+  { label: "Asian", value: "Non-Hispanic Asian" },
+  { label: "Black / African American", value: "Non-Hispanic Black" },
+  { label: "Native Hawaiian / Pacific Islander", value: "Non-Hispanic Native Hawaiian and Other Pacific Islander" },
+  { label: "Two or More Races", value: "Non-Hispanic Two or More Races" },
+  { label: "White", value: "Non-Hispanic White" },
+];
+
 // ── Visual config ──────────────────────────────────────────────────────────
 const TYPE_CONFIG = {
   past: { fill: '#1E283B', border: '#7C8BAB', glow: 'rgba(124,139,171,0.18)', label: 'HISTORY' },
@@ -72,6 +82,14 @@ export default function IndividualPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const counties = useStore(s => s.counties);
   const [showAutocomplete, setShowAutocomplete] = useState(false);
+
+  const [showEthAutocomplete, setShowEthAutocomplete] = useState(false);
+
+  const ethDisplayLabel = ETHNICITY_OPTIONS.find(e => e.value === profile.ethnicity)?.label || profile.ethnicity || "";
+
+  const filteredEthnicities = ETHNICITY_OPTIONS.filter(e =>
+    e.label.toLowerCase().includes(ethDisplayLabel.toLowerCase())
+  );
 
   const countyOptions = useMemo(() => {
     if (profile.location.length < 2) return [];
@@ -242,10 +260,37 @@ export default function IndividualPage() {
           )}
 
           <div className="form-grid-2">
-            <div className="form-field">
+            <div className="form-field" style={{ position: 'relative' }}>
               <label className="field-label">Ethnicity</label>
-              <input className="field-input" placeholder="e.g. African American"
-                value={profile.ethnicity} onChange={e => setProfile(p => ({ ...p, ethnicity: e.target.value }))} />
+              <input
+                className="field-input"
+                placeholder="e.g. Black / African American"
+                value={ethDisplayLabel}
+                onFocus={() => setShowEthAutocomplete(true)}
+                onBlur={() => setTimeout(() => setShowEthAutocomplete(false), 200)}
+                onChange={e => {
+                  const typed = e.target.value;
+                  const match = ETHNICITY_OPTIONS.find(o => o.label.toLowerCase() === typed.toLowerCase());
+                  setProfile(p => ({ ...p, ethnicity: match ? match.value : typed }));
+                  setShowEthAutocomplete(true);
+                }}
+              />
+              {showEthAutocomplete && filteredEthnicities.length > 0 && (
+                <div className="autocomplete-dropdown">
+                  {filteredEthnicities.map(option => (
+                    <div
+                      key={option.value}
+                      className="autocomplete-item"
+                      onClick={() => {
+                        setProfile(p => ({ ...p, ethnicity: option.value }));
+                        setShowEthAutocomplete(false);
+                      }}
+                    >
+                      {option.label}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="form-field" style={{ position: 'relative' }}>
               <label className="field-label">Location (County & State)</label>
