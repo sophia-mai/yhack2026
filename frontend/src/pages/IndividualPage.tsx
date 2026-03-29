@@ -1,4 +1,5 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useStore } from '../store/useStore';
 import { generatePatientTimeline, getSimilarityScore } from '../api/client';
 import type { TimelineEvent, SimilarityResult } from '../api/client';
 
@@ -6,7 +7,7 @@ import type { TimelineEvent, SimilarityResult } from '../api/client';
 interface PatientProfile {
   name: string; age: string; sex: 'male' | 'female' | 'other';
   heightFt: string; heightIn: string; weightLbs: string;
-  ethnicity: string; smoker: boolean; familyHistory: string; state: string;
+  ethnicity: string; smoker: boolean; familyHistory: string; location: string;
 }
 
 // ── Mock demo data ─────────────────────────────────────────────────────────
@@ -15,7 +16,7 @@ const MOCK_PATIENT: PatientProfile = {
   heightFt: '5', heightIn: '11', weightLbs: '218',
   ethnicity: 'African American', smoker: true,
   familyHistory: 'Father had Type 2 diabetes, died of heart attack at 61. Mother has hypertension.',
-  state: 'New York',
+  location: 'Bronx, New York',
 };
 const MOCK_HISTORY = `PATIENT MEDICAL RECORD — Marcus Williams, DOB 1973-04-12
 - 1995 (Age 22): Began smoking cigarettes, 1 ppd habit.
@@ -54,7 +55,7 @@ const SEVERITY_SIZE: Record<string, number> = {
 export default function IndividualPage() {
   const [profile, setProfile] = useState<PatientProfile>({
     name: '', age: '', sex: 'male', heightFt: '', heightIn: '',
-    weightLbs: '', ethnicity: '', smoker: false, familyHistory: '', state: '',
+    weightLbs: '', ethnicity: '', smoker: false, familyHistory: '', location: '',
   });
   const [medicalHistory, setMedicalHistory] = useState('');
   const [timeline, setTimeline] = useState<TimelineEvent[] | null>(null);
@@ -65,6 +66,16 @@ export default function IndividualPage() {
   const [showInterventionPanel, setShowInterventionPanel] = useState(false);
   const [reloading, setReloading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const counties = useStore(s => s.counties);
+  const [showAutocomplete, setShowAutocomplete] = useState(false);
+
+  const countyOptions = useMemo(() => {
+    if (profile.location.length < 2) return [];
+    const lower = profile.location.toLowerCase();
+    return counties
+      .filter(c => `${c.name}, ${c.stateName}`.toLowerCase().includes(lower))
+      .slice(0, 10);
+  }, [profile.location, counties]);
 
   function calcBMI(): string {
     const h = (parseFloat(profile.heightFt) * 12) + parseFloat(profile.heightIn);
@@ -84,6 +95,10 @@ export default function IndividualPage() {
     setActiveInterventions(new Set()); setShowInterventionPanel(false);
     try {
       const bmi = calcBMI();
+      // Match county
+      const matchedCounty = counties.find(c => `${c.name}, ${c.stateName}` === profile.location);
+      const stateFallback = matchedCounty ? matchedCounty.stateName : profile.location.split(',')[1]?.trim() || profile.location;
+
       const [timelineRes, simRes] = await Promise.all([
         generatePatientTimeline({
           profile: {
@@ -98,7 +113,7 @@ export default function IndividualPage() {
         profile.age ? getSimilarityScore({
           age: parseInt(profile.age), sex: profile.sex,
           ethnicity: profile.ethnicity, bmi,
-          smoker: profile.smoker, state: profile.state,
+          smoker: profile.smoker, state: stateFallback, countyFips: matchedCounty?.fips,
         }).catch(() => null) : Promise.resolve(null),
       ]);
       setTimeline(timelineRes.timeline);
@@ -151,7 +166,8 @@ export default function IndividualPage() {
           <button className="btn-mock" onClick={loadMock}>⚡ Demo</button>
         </div>
 
-        <div className="form-section">
+        <div className="patient-form-scroll">
+          <div className="form-section">
           <div className="form-label">BASIC INFORMATION</div>
           <div className="form-grid-2">
             <div className="form-field">
@@ -211,10 +227,29 @@ export default function IndividualPage() {
               <input className="field-input" placeholder="e.g. African American"
                 value={profile.ethnicity} onChange={e => setProfile(p => ({ ...p, ethnicity: e.target.value }))} />
             </div>
-            <div className="form-field">
-              <label className="field-label">State</label>
-              <input className="field-input" placeholder="e.g. New York"
-                value={profile.state} onChange={e => setProfile(p => ({ ...p, state: e.target.value }))} />
+            <div className="form-field" style={{ position: 'relative' }}>
+              <label className="field-label">Location (County & State)</label>
+              <input className="field-input" placeholder="e.g. Bronx, New York"
+                value={profile.location} 
+                onFocus={() => setShowAutocomplete(true)}
+                onBlur={() => setTimeout(() => setShowAutocomplete(false), 200)}
+                onChange={e => {
+                  setProfile(p => ({ ...p, location: e.target.value }));
+                  setShowAutocomplete(true);
+                }} />
+              {showAutocomplete && countyOptions.length > 0 && (
+                <div className="autocomplete-dropdown">
+                  {countyOptions.map(c => (
+                    <div key={c.fips} className="autocomplete-item"
+                         onClick={() => {
+                           setProfile(p => ({ ...p, location: `${c.name}, ${c.stateName}` }));
+                           setShowAutocomplete(false);
+                         }}>
+                      {c.name}, {c.stateName}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -260,12 +295,15 @@ export default function IndividualPage() {
               value={medicalHistory} onChange={e => setMedicalHistory(e.target.value)} />
           </div>
         </div>
+        </div>
 
         {error && <div className="timeline-error">{error}</div>}
 
-        <button className="btn-generate" onClick={handleGenerate} disabled={loading}>
-          {loading ? <><div className="btn-spinner" />Analyzing with Claude AI…</> : <>✦ Generate Health Timeline</>}
-        </button>
+        <div className="patient-form-bottom">
+          <button className="btn-generate" onClick={handleGenerate} disabled={loading}>
+            {loading ? <><div className="btn-spinner" />Analyzing with Claude AI…</> : <>✦ Generate Health Timeline</>}
+          </button>
+        </div>
       </div>
 
       {/* ── RIGHT: Timeline Panel ───────────────────────────── */}
@@ -300,7 +338,7 @@ export default function IndividualPage() {
                 <h2 className="timeline-patient-name">{profile.name}'s Health Timeline</h2>
                 <p className="timeline-patient-meta">
                   {profile.age}yo · {profile.sex} · {profile.ethnicity || 'Patient'}
-                  {profile.state && <> · {profile.state}</>}
+                  {profile.location && <> · {profile.location}</>}
                   {activeInterventions.size > 0 && timeline.some(e => e.avoided) && (
                     <span className="avoided-badge">✓ Risk profile improved with {activeInterventions.size} intervention{activeInterventions.size > 1 ? 's' : ''}</span>
                   )}
@@ -383,9 +421,9 @@ export default function IndividualPage() {
 }
 
 // ── 2D Horizontal Draggable Timeline ──────────────────────────────────────
-const NODE_GAP = 180;
-const CANVAS_PADDING = 80;
-const LINE_Y = 220;
+const NODE_GAP = 220;
+const CANVAS_PADDING = 120;
+const LINE_Y = 320;
 
 
 function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
@@ -437,10 +475,10 @@ function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
       onMouseLeave={onMouseUp}>
 
       {/* Dot grid background */}
-      <svg className="timeline-grid" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
+      <svg className="timeline-grid timeline-grid-animated" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
         <defs>
-          <pattern id="dot-grid" x="0" y="0" width="32" height="32" patternUnits="userSpaceOnUse">
-            <circle cx="1" cy="1" r="1" fill="rgba(255,255,255,0.04)" />
+          <pattern id="dot-grid" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+            <circle cx="2" cy="2" r="1.5" fill="rgba(255,255,255,0.08)" />
           </pattern>
         </defs>
         <rect width="100%" height="100%" fill="url(#dot-grid)" />
@@ -457,18 +495,18 @@ function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
       <div className="timeline-inner-canvas"
         style={{ transform: `translateX(${clampedOffset}px)`, width: canvasWidth }}>
 
-        {/* Gradient line */}
-        <svg style={{ position: 'absolute', top: LINE_Y - 1, left: 0, width: canvasWidth, height: 3, pointerEvents: 'none' }}>
+        {/* Gradient glowing line */}
+        <svg style={{ position: 'absolute', top: LINE_Y - 4, left: 0, width: canvasWidth, height: 10, pointerEvents: 'none', filter: 'drop-shadow(0 0 10px rgba(0, 212, 170, 0.4))' }}>
           <defs>
-            <linearGradient id="line-grad" x1="0" y1="0" x2="1" y2="0">
+            <linearGradient id="line-grad" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2={canvasWidth} y2="0">
               <stop offset="0%" stopColor="#3D4A6E" stopOpacity="0.4" />
-              <stop offset="40%" stopColor="#5B6A90" stopOpacity="0.9" />
-              <stop offset="60%" stopColor="#00D4AA" stopOpacity="1" />
-              <stop offset="80%" stopColor="#FF9B3D" stopOpacity="0.9" />
-              <stop offset="100%" stopColor="#FF5757" stopOpacity="0.6" />
+              <stop offset="30%" stopColor="#5B6A90" stopOpacity="0.9" />
+              <stop offset="50%" stopColor="#00D4AA" stopOpacity="1" />
+              <stop offset="75%" stopColor="#FF9B3D" stopOpacity="1" />
+              <stop offset="100%" stopColor="#FF5757" stopOpacity="0.7" />
             </linearGradient>
           </defs>
-          <line x1="0" y1="1.5" x2={canvasWidth} y2="1.5" stroke="url(#line-grad)" strokeWidth="2" />
+          <line x1="0" y1="4.5" x2={canvasWidth} y2="4.5" stroke="url(#line-grad)" strokeWidth="3" />
         </svg>
 
         {/* Nodes */}
@@ -496,29 +534,45 @@ function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
               {isWarning && isFuture ? (
                 <div className="node-triangle"
                   style={{
-                    width: size + 10, height: size + 10,
-                    filter: isHovered ? `drop-shadow(0 0 12px ${cfg.border})` : 'none',
-                    opacity: ev.avoided ? 0.4 : 1,
+                    width: size + 14, height: size + 14,
+                    filter: isHovered ? `drop-shadow(0 0 24px ${cfg.glow}) drop-shadow(0 0 8px ${cfg.border})` : `drop-shadow(0 0 8px ${cfg.glow})`,
+                    opacity: ev.avoided ? 0.3 : 1,
                   }}>
-                  <svg viewBox="0 0 52 52" style={{ width: '100%', height: '100%' }}>
+                  <svg viewBox="0 0 52 52" style={{ width: '100%', height: '100%', backdropFilter: 'blur(8px)' }}>
                     <polygon points="26,4 50,48 2,48"
-                      fill={ev.avoided ? 'rgba(0,212,170,0.15)' : cfg.fill}
+                      fill={ev.avoided ? 'rgba(0,212,170,0.1)' : `url(#triangle-grad-${i})`}
                       stroke={ev.avoided ? '#00D4AA' : cfg.border}
-                      strokeWidth="2" />
+                      strokeWidth="2.5" />
+                    <defs>
+                      <linearGradient id={`triangle-grad-${i}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={cfg.fill} />
+                        <stop offset="100%" stopColor="rgba(0,0,0,0.6)" />
+                      </linearGradient>
+                    </defs>
                     <text x="26" y="38" textAnchor="middle" fill={ev.avoided ? '#00D4AA' : cfg.border}
-                      fontSize="18" fontWeight="bold">!</text>
+                      fontSize="20" fontWeight="bold">!</text>
                   </svg>
                 </div>
               ) : (
                 <div className={`node-circle${isHovered ? ' node-circle-hovered' : ''}${ev.type === 'present' ? ' node-present' : ''}`}
                   style={{
                     width: size, height: size,
-                    background: ev.avoided ? 'rgba(0,212,170,0.1)' : cfg.fill,
+                    background: ev.avoided ? 'rgba(0,212,170,0.1)' : `url(#circle-grad-${i})`,
+                    backdropFilter: 'blur(8px)',
                     border: `2px solid ${ev.avoided ? '#00D4AA' : cfg.border}`,
-                    boxShadow: isHovered ? `0 0 18px ${ev.avoided ? 'rgba(0,212,170,0.5)' : cfg.glow}` : ev.type === 'present' ? `0 0 14px ${cfg.glow}` : 'none',
-                    opacity: ev.avoided ? 0.6 : 1,
+                    boxShadow: isHovered ? `0 0 24px ${ev.avoided ? 'rgba(0,212,170,0.6)' : cfg.glow}, inset 0 2px 4px rgba(255,255,255,0.2)` : ev.type === 'present' ? `0 0 18px ${cfg.glow}` : `0 4px 8px rgba(0,0,0,0.5)`,
+                    opacity: ev.avoided ? 0.5 : 1,
                   }}>
-                  {ev.type === 'present' && <div className="node-pulse-ring" style={{ borderColor: cfg.border }} />}
+                    <svg style={{ position: 'absolute', width: 0, height: 0 }}>
+                      <defs>
+                        <linearGradient id={`circle-grad-${i}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={cfg.fill} stopOpacity="0.9" />
+                          <stop offset="100%" stopColor="rgba(0,0,0,0.6)" />
+                        </linearGradient>
+                      </defs>
+                    </svg>
+                  {ev.type === 'present' && <div className="node-pulse-ring node-pulse-ring-1" style={{ borderColor: cfg.border }} />}
+                  {ev.type === 'present' && <div className="node-pulse-ring node-pulse-ring-2" style={{ borderColor: cfg.border }} />}
                 </div>
               )}
 
@@ -550,12 +604,14 @@ function TimelineTooltip({ event: ev, nodeX }: { event: TimelineEvent; nodeX: nu
   return (
     <div className="timeline-tooltip"
       style={{
-        left: nodeX - 140,
-        top: LINE_Y - 230,
+        left: nodeX - 160,
+        top: LINE_Y - 250,
         borderColor: ev.avoided ? '#00D4AA' : cfg.border,
-        background: 'rgba(8,14,28,0.97)',
+        boxShadow: `0 24px 48px rgba(0,0,0,0.8), 0 0 32px ${cfg.glow}`,
       }}>
-      <div className="tooltip-header">
+      <div className="tooltip-glass-surface" />
+      <div className="tooltip-content-wrapper">
+        <div className="tooltip-header">
         <span className="tooltip-type-badge"
           style={{ color: ev.avoided ? '#00D4AA' : cfg.border, borderColor: ev.avoided ? 'rgba(0,212,170,0.3)' : cfg.border + '50' }}>
           {ev.avoided ? 'AVOIDED' : cfg.label}
@@ -572,6 +628,7 @@ function TimelineTooltip({ event: ev, nodeX }: { event: TimelineEvent; nodeX: nu
           📊 Based on statistical comparison with similar patient profiles in this demographic
         </div>
       )}
+      </div>
       <div className="tooltip-tail" style={{ borderTopColor: ev.avoided ? '#00D4AA' : cfg.border }} />
     </div>
   );

@@ -109,6 +109,7 @@ export async function getSimilarityScore(profile: {
   bmi: string;
   smoker: boolean;
   state: string;
+  countyFips?: string;
 }): Promise<SimilarityResult> {
   const res = await fetch(`${API_BASE}/ai/similarity-score`, {
     method: 'POST',
