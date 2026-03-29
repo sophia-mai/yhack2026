@@ -40,20 +40,13 @@ const INTERVENTIONS = [
 ];
 
 // ── Visual config ──────────────────────────────────────────────────────────
-const SEVERITY_CONFIG = {
-  low: { fill: '#25324D', border: '#7489B7', glow: 'rgba(116,137,183,0.24)' },
-  medium: { fill: '#12344F', border: '#60B8FF', glow: 'rgba(96,184,255,0.28)' },
-  high: { fill: '#4A3000', border: '#FF9B3D', glow: 'rgba(255,155,61,0.3)' },
-  critical: { fill: '#4A0000', border: '#FF5757', glow: 'rgba(255,87,87,0.34)' },
-} as const;
-
 const TYPE_CONFIG = {
-  present: { fill: '#003D30', border: '#00D4AA', glow: 'rgba(0,212,170,0.4)', label: 'NOW' },
-  intervention: { fill: '#003040', border: '#60B8FF', glow: 'rgba(96,184,255,0.3)', label: 'INTERVENTION' },
-  past: { label: 'HISTORY' },
-  predicted: { label: 'PROJECTED' },
-  risk: { label: 'RISK' },
-  warning: { label: 'WARNING' },
+  past: { fill: '#1E283B', border: '#7C8BAB', glow: 'rgba(124,139,171,0.18)', label: 'HISTORY' },
+  present: { fill: '#073A39', border: '#2FE0C0', glow: 'rgba(47,224,192,0.26)', label: 'NOW' },
+  intervention: { fill: '#073A39', border: '#2FE0C0', glow: 'rgba(47,224,192,0.26)', label: 'INTERVENTION' },
+  predicted: { fill: '#43311F', border: '#E3A45C', glow: 'rgba(227,164,92,0.22)', label: 'FUTURE' },
+  risk: { fill: '#43311F', border: '#E3A45C', glow: 'rgba(227,164,92,0.22)', label: 'FUTURE' },
+  warning: { fill: '#43311F', border: '#E3A45C', glow: 'rgba(227,164,92,0.22)', label: 'FUTURE' },
 } as const;
 
 const SEVERITY_SIZE: Record<string, number> = {
@@ -510,11 +503,7 @@ function getEventDescriptor(event: TimelineEvent) {
 }
 
 function getEventVisual(event: TimelineEvent) {
-  if (event.type === 'present') return TYPE_CONFIG.present;
-  if (event.type === 'intervention') return TYPE_CONFIG.intervention;
-  const severity = SEVERITY_CONFIG[event.severity] ?? SEVERITY_CONFIG.medium;
-  const label = TYPE_CONFIG[event.type as keyof typeof TYPE_CONFIG]?.label ?? 'EVENT';
-  return { ...severity, label };
+  return TYPE_CONFIG[event.type as keyof typeof TYPE_CONFIG] ?? TYPE_CONFIG.past;
 }
 
 // ── InsightTile ──────────────────────────────────────────────────────────────

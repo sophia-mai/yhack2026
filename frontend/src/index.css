@@ -2870,23 +2870,23 @@ input[type="number"]:focus {
 }
 
 .timeline-card-severity-low {
-  background: rgba(103, 125, 175, 0.18);
-  color: #c7d4f7;
+  background: rgba(124, 139, 171, 0.14);
+  color: #b9c6e0;
 }
 
 .timeline-card-severity-medium {
-  background: rgba(96, 184, 255, 0.16);
-  color: #8dc8ff;
+  background: rgba(124, 139, 171, 0.14);
+  color: #d2dced;
 }
 
 .timeline-card-severity-high {
-  background: rgba(255, 155, 61, 0.16);
-  color: #ffbb74;
+  background: rgba(227, 164, 92, 0.16);
+  color: #efbc86;
 }
 
 .timeline-card-severity-critical {
-  background: rgba(255, 87, 87, 0.16);
-  color: #ff9090;
+  background: rgba(255, 120, 94, 0.16);
+  color: #ffb09c;
 }
 
 .timeline-event-connector {
