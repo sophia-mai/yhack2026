@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useStore } from '../store/useStore';
 import { generatePatientTimeline, getSimilarityScore } from '../api/client';
-import type { TimelineEvent } from '../api/client';
+import type { PreventionOpportunity, TimelineEvent } from '../api/client';
 import { runDemographicEngine } from '../utils/demographicEngine';
 import type { DemographicInsight, SimilarityResult } from '../types';
 
@@ -43,10 +43,6 @@ const ETHNICITY_OPTIONS = [
 const TYPE_CONFIG = {
   past: { fill: '#1E283B', border: '#7C8BAB', glow: 'rgba(124,139,171,0.18)', label: 'HISTORY' },
   present: { fill: '#073A39', border: '#2FE0C0', glow: 'rgba(47,224,192,0.26)', label: 'NOW' },
-  intervention: { fill: '#073A39', border: '#2FE0C0', glow: 'rgba(47,224,192,0.26)', label: 'INTERVENTION' },
-  predicted: { fill: '#43311F', border: '#E3A45C', glow: 'rgba(227,164,92,0.22)', label: 'FUTURE' },
-  risk: { fill: '#43311F', border: '#E3A45C', glow: 'rgba(227,164,92,0.22)', label: 'FUTURE' },
-  warning: { fill: '#43311F', border: '#E3A45C', glow: 'rgba(227,164,92,0.22)', label: 'FUTURE' },
 } as const;
 
 const SEVERITY_SIZE: Record<string, number> = {
@@ -61,6 +57,7 @@ export default function IndividualPage() {
   });
   const [medicalHistory, setMedicalHistory] = useState('');
   const [timeline, setTimeline] = useState<TimelineEvent[] | null>(null);
+  const [opportunities, setOpportunities] = useState<PreventionOpportunity[] | null>(null);
   const [similarity, setSimilarity] = useState<SimilarityResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -107,7 +104,7 @@ export default function IndividualPage() {
 
   async function handleGenerate() {
     if (!profile.age || !profile.name) { setError('Please enter a patient name and age.'); return; }
-    setLoading(true); setError(null); setTimeline(null); setSimilarity(null);
+    setLoading(true); setError(null); setTimeline(null); setOpportunities(null); setSimilarity(null);
     setInsight(null); setShowInsights(false);
     setPatientContext(null);
     try {
@@ -132,6 +129,7 @@ export default function IndividualPage() {
         }).catch(() => null) : Promise.resolve(null),
       ]);
       setTimeline(timelineRes.timeline);
+      setOpportunities(timelineRes.opportunities);
       setSimilarity(simRes);
       // Community health equity engine (client-side, synchronous)
       const bmiNum = bmi ? parseFloat(bmi) : null;
@@ -178,7 +176,7 @@ export default function IndividualPage() {
         <div className="patient-form-header">
           <div>
             <h2 className="patient-form-title">Patient Profile</h2>
-            <p className="patient-form-subtitle">Build a patient context report — combine medical records with county and national health data</p>
+            <p className="patient-form-subtitle">Build a retrospective patient context report from medical history, county conditions, and missed prevention opportunities</p>
           </div>
           <button className="btn-mock" onClick={loadMock}>⚡ Demo</button>
         </div>
@@ -345,7 +343,7 @@ export default function IndividualPage() {
 
         <div className="patient-form-bottom">
           <button className="btn-generate" onClick={handleGenerate} disabled={loading}>
-            {loading ? <><div className="btn-spinner" />Structuring patient context…</> : <>✦ Generate Health Timeline</>}
+            {loading ? <><div className="btn-spinner" />Structuring patient context…</> : <>✦ Generate Patient Review</>}
           </button>
         </div>
       </div>
@@ -358,12 +356,13 @@ export default function IndividualPage() {
             <div className="timeline-empty-title">Enter a patient to build their health context</div>
             <div className="timeline-empty-sub">
               Prophis turns fragmented medical history into a readable timeline, then layers in county
-              and cohort context so analysts can interpret the case and spot moments where earlier action
-              may have changed the trajectory.
+              and cohort context so analysts can interpret the case and surface where earlier preventive
+              action or follow-up could have changed the trajectory.
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 4, justifyContent: 'center', flexWrap: 'wrap', fontSize: 11, color: 'var(--text-dim)' }}>
               <span style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-subtle)', borderRadius: 6, padding: '4px 10px' }}>📋 Chronological timeline</span>
               <span style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-subtle)', borderRadius: 6, padding: '4px 10px' }}>📍 County health context</span>
+              <span style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-subtle)', borderRadius: 6, padding: '4px 10px' }}>🛟 Prevention review</span>
             </div>
             <button className="btn-mock-large" onClick={() => { loadMock(); }}>
               ⚡ Load Demo Patient
@@ -375,7 +374,7 @@ export default function IndividualPage() {
           <div className="timeline-loading">
             <div className="loading-orb" />
             <div className="loading-title">Building patient health context…</div>
-            <div className="loading-sub">Structuring the record into a timeline and layering in county and cohort context</div>
+            <div className="loading-sub">Structuring the record into a timeline, then identifying where prevention or follow-up could have happened sooner</div>
           </div>
         )}
 
@@ -384,7 +383,7 @@ export default function IndividualPage() {
             {/* Header */}
             <div className="timeline-header">
               <div>
-                <h2 className="timeline-patient-name">{profile.name}'s Health Timeline</h2>
+                <h2 className="timeline-patient-name">{profile.name}'s Health Narrative</h2>
                 <p className="timeline-patient-meta">
                   {profile.age}yo · {profile.sex} · {profile.ethnicity || 'Patient'}
                   {profile.location && <> · {profile.location}</>}
@@ -477,6 +476,46 @@ export default function IndividualPage() {
               {/* 2D Horizontal Timeline Canvas */}
               <HorizontalTimeline events={timeline} />
             </div>
+
+            {opportunities && opportunities.length > 0 && (
+              <div className="timeline-prevention-section">
+                <div className="timeline-utility-bar">
+                  <div className="timeline-utility-copy">
+                    <div className="timeline-utility-title">Prevention Review</div>
+                    <div className="timeline-utility-subtitle">
+                      Retrospective inflection points where screening, counseling, monitoring, or follow-up
+                      could likely have happened earlier based on the available record.
+                    </div>
+                  </div>
+                  <div className="timeline-utility-status">
+                    <span className="timeline-utility-count">
+                      {opportunities.length} opportunity{opportunities.length === 1 ? '' : 'ies'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="retrospective-opportunity-grid">
+                  {opportunities.map((opportunity, index) => (
+                    <article
+                      key={`${opportunity.year}-${opportunity.age}-${index}`}
+                      className="retrospective-opportunity-card"
+                    >
+                      <div className="retrospective-opportunity-topline">
+                        <span className="retrospective-opportunity-anchor">
+                          Age {opportunity.age} · {opportunity.year}
+                        </span>
+                        <span className={`retrospective-opportunity-priority retrospective-opportunity-priority-${opportunity.priority}`}>
+                          {opportunity.priority}
+                        </span>
+                      </div>
+                      <h3 className="retrospective-opportunity-title">{opportunity.title}</h3>
+                      <p className="retrospective-opportunity-action">{opportunity.action}</p>
+                      <p className="retrospective-opportunity-rationale">{opportunity.rationale}</p>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -486,11 +525,7 @@ export default function IndividualPage() {
 
 // ── 2D Horizontal Draggable Timeline ──────────────────────────────────────
 function getEventDescriptor(event: TimelineEvent) {
-  if (event.avoided) return 'Prevented outcome';
   if (event.type === 'present') return 'Current patient state';
-  if (event.type === 'intervention') return 'Intervention milestone';
-  if (event.type === 'warning') return 'Escalation warning';
-  if (event.type === 'predicted' || event.type === 'risk') return 'Projected future event';
   return 'Recorded history';
 }
 
@@ -634,7 +669,6 @@ function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
   const focusedIndex = hoveredIndex ?? activeIndex;
   const focusedEvent = events[focusedIndex] ?? events[presentIndex];
   const focusedCfg = getEventVisual(focusedEvent);
-  const focusedIsFuture = focusedEvent?.type === 'risk' || focusedEvent?.type === 'predicted' || focusedEvent?.type === 'warning';
   const firstAge = events[0]?.age;
   const lastAge = events[events.length - 1]?.age;
   const compact = wrapperSize.height > 0 && (wrapperSize.height < 620 || wrapperSize.width < 1280);
@@ -802,19 +836,17 @@ function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
         style={{
           width: layout.detailWidth,
           top: layout.detailTop,
-          borderColor: focusedEvent?.avoided ? 'rgba(0,212,170,0.34)' : `${focusedCfg.border}55`,
+          borderColor: `${focusedCfg.border}55`,
           boxShadow: `0 20px 54px rgba(0,0,0,0.34), 0 0 24px ${focusedCfg.glow}`,
-          background: focusedEvent?.avoided
-            ? 'linear-gradient(180deg, rgba(5, 22, 24, 0.94), rgba(4, 14, 22, 0.82))'
-            : `linear-gradient(180deg, rgba(7, 12, 24, 0.95), ${focusedCfg.fill}30)`,
+          background: `linear-gradient(180deg, rgba(7, 12, 24, 0.95), ${focusedCfg.fill}30)`,
         }}
       >
         <div className="timeline-focus-row">
           <span
             className="timeline-focus-badge"
             style={{
-              color: focusedEvent?.avoided ? '#86f4dd' : focusedCfg.border,
-              borderColor: focusedEvent?.avoided ? 'rgba(0,212,170,0.26)' : `${focusedCfg.border}33`,
+              color: focusedCfg.border,
+              borderColor: `${focusedCfg.border}33`,
             }}
           >
             {getEventDescriptor(focusedEvent)}
@@ -827,9 +859,6 @@ function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
           <span className="timeline-focus-age">Age {focusedEvent?.age}</span>
           <span className={`timeline-card-severity timeline-card-severity-${focusedEvent?.severity}`}>{focusedEvent?.severity}</span>
         </div>
-        {focusedIsFuture && !focusedEvent?.avoided && (
-          <div className="timeline-focus-note">Modeled future context only — not a clinical prediction.</div>
-        )}
       </div>
 
       <div className="timeline-nav timeline-nav-left">
@@ -867,8 +896,6 @@ function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
             const x = layout.padding + i * layout.gap;
             const cfg = getEventVisual(ev);
             const size = Math.round((SEVERITY_SIZE[ev.severity] ?? 32) * layout.nodeScale);
-            const isFuture = ev.type === 'risk' || ev.type === 'predicted' || ev.type === 'warning';
-            const isWarning = ev.severity === 'critical' || ev.type === 'warning';
             const isActive = focusedIndex === i;
             const previewTop = layout.previewTop + (compact ? [0, 10, 18][i % 3] : [0, 14, 24][i % 3]);
             const connectorTop = previewTop + layout.previewHeight - 8;
@@ -878,19 +905,17 @@ function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
               <div key={`${ev.age}-${i}`}>
                 <button
                   type="button"
-                  className={`timeline-preview-card${isActive ? ' active' : ''}${ev.avoided ? ' avoided' : ''}${ev.type === 'present' ? ' present' : ''}`}
+                  className={`timeline-preview-card${isActive ? ' active' : ''}${ev.type === 'present' ? ' present' : ''}`}
                   style={{
                     left: x - layout.previewWidth / 2,
                     top: previewTop,
                     width: layout.previewWidth,
                     height: layout.previewHeight,
-                    borderColor: ev.avoided ? 'rgba(0,212,170,0.36)' : `${cfg.border}55`,
+                    borderColor: `${cfg.border}55`,
                     boxShadow: isActive
                       ? `0 18px 42px rgba(0,0,0,0.42), 0 0 20px ${cfg.glow}`
                       : '0 12px 28px rgba(0,0,0,0.24)',
-                    background: ev.avoided
-                      ? 'linear-gradient(180deg, rgba(5, 22, 24, 0.96), rgba(4, 14, 22, 0.78))'
-                      : `linear-gradient(180deg, rgba(5, 12, 24, 0.96), ${cfg.fill}33)`,
+                    background: `linear-gradient(180deg, rgba(5, 12, 24, 0.96), ${cfg.fill}33)`,
                   }}
                   onMouseEnter={() => !isDragging && setHoveredIndex(i)}
                   onMouseLeave={() => setHoveredIndex(null)}
@@ -902,11 +927,11 @@ function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
                     <span
                       className="timeline-preview-badge"
                       style={{
-                        color: ev.avoided ? '#86f4dd' : cfg.border,
-                        borderColor: ev.avoided ? 'rgba(0,212,170,0.28)' : `${cfg.border}33`,
+                        color: cfg.border,
+                        borderColor: `${cfg.border}33`,
                       }}
                     >
-                      {ev.avoided ? 'Avoided' : cfg.label}
+                      {cfg.label}
                     </span>
                     <span className="timeline-preview-year">{ev.year}</span>
                   </div>
@@ -927,50 +952,26 @@ function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
                   className={`timeline-node-wrap${isActive ? ' active' : ''}`}
                   style={{ left: x - size / 2, top: layout.lineY - size / 2 }}
                 >
-                  {ev.avoided && <div className="node-avoided-ribbon">Avoided</div>}
                   <div
                     className="timeline-node-halo"
                     style={{ background: `radial-gradient(circle, ${cfg.glow} 0%, transparent 72%)` }}
                   />
-                  {isWarning && isFuture ? (
-                    <div
-                      className="node-triangle"
-                      style={{
-                        width: size + 4,
-                        height: size + 4,
-                        filter: isActive ? `drop-shadow(0 0 18px ${cfg.glow})` : `drop-shadow(0 0 8px ${cfg.glow})`,
-                        opacity: ev.avoided ? 0.4 : 1,
-                      }}
-                    >
-                      <svg viewBox="0 0 52 52" style={{ width: '100%', height: '100%' }}>
-                        <polygon
-                          points="26,4 50,48 2,48"
-                          fill={ev.avoided ? 'rgba(0,212,170,0.12)' : cfg.fill}
-                          stroke={ev.avoided ? '#00D4AA' : cfg.border}
-                          strokeWidth="2.5"
-                        />
-                        <text x="26" y="38" textAnchor="middle" fill={ev.avoided ? '#00D4AA' : cfg.border} fontSize="20" fontWeight="bold">!</text>
-                      </svg>
-                    </div>
-                  ) : (
-                    <div
-                      className={`node-circle${isActive ? ' node-circle-hovered' : ''}${ev.type === 'present' ? ' node-present' : ''}`}
-                      style={{
-                        width: size,
-                        height: size,
-                        background: ev.avoided ? 'rgba(0,212,170,0.12)' : `linear-gradient(180deg, ${cfg.fill}, rgba(6,11,24,0.9))`,
-                        border: `2px solid ${ev.avoided ? '#00D4AA' : cfg.border}`,
-                        boxShadow: isActive
-                          ? `0 0 22px ${ev.avoided ? 'rgba(0,212,170,0.5)' : cfg.glow}, inset 0 1px 0 rgba(255,255,255,0.18)`
-                          : `0 10px 20px rgba(0,0,0,0.4), 0 0 12px ${cfg.glow}`,
-                        opacity: ev.avoided ? 0.58 : 1,
-                      }}
-                    >
-                      {ev.type === 'present' && <div className="node-pulse-ring node-pulse-ring-1" style={{ borderColor: cfg.border }} />}
-                      {ev.type === 'present' && <div className="node-pulse-ring node-pulse-ring-2" style={{ borderColor: cfg.border }} />}
-                    </div>
-                  )}
-                  <div className="node-age-label" style={{ color: ev.avoided ? '#86f4dd' : cfg.border }}>
+                  <div
+                    className={`node-circle${isActive ? ' node-circle-hovered' : ''}${ev.type === 'present' ? ' node-present' : ''}`}
+                    style={{
+                      width: size,
+                      height: size,
+                      background: `linear-gradient(180deg, ${cfg.fill}, rgba(6,11,24,0.9))`,
+                      border: `2px solid ${cfg.border}`,
+                      boxShadow: isActive
+                        ? `0 0 22px ${cfg.glow}, inset 0 1px 0 rgba(255,255,255,0.18)`
+                        : `0 10px 20px rgba(0,0,0,0.4), 0 0 12px ${cfg.glow}`,
+                    }}
+                  >
+                    {ev.type === 'present' && <div className="node-pulse-ring node-pulse-ring-1" style={{ borderColor: cfg.border }} />}
+                    {ev.type === 'present' && <div className="node-pulse-ring node-pulse-ring-2" style={{ borderColor: cfg.border }} />}
+                  </div>
+                  <div className="node-age-label" style={{ color: cfg.border }}>
                     Age {ev.age}
                   </div>
                 </div>

@@ -112,7 +112,6 @@ export async function getPopulationInsight(body: {
 export async function generatePatientTimeline(body: {
   profile: Record<string, unknown>;
   medicalHistory: string;
-  interventions?: Array<{ name: string; description: string }>;
 }) {
   const res = await fetch(`${API_BASE}/ai/patient-timeline`, {
     method: 'POST',
@@ -120,7 +119,21 @@ export async function generatePatientTimeline(body: {
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<{ timeline: TimelineEvent[] }>;
+  return res.json() as Promise<TimelineResponse>;
+}
+
+export interface PreventionOpportunity {
+  age: number;
+  year: number;
+  title: string;
+  action: string;
+  rationale: string;
+  priority: 'medium' | 'high' | 'critical';
+}
+
+export interface TimelineResponse {
+  timeline: TimelineEvent[];
+  opportunities: PreventionOpportunity[];
 }
 
 export async function getSimilarityScore(profile: {
@@ -144,7 +157,7 @@ export async function getSimilarityScore(profile: {
 export interface TimelineEvent {
   age: number;
   year: number;
-  type: 'past' | 'present' | 'predicted' | 'intervention' | 'warning' | 'risk';
+  type: 'past' | 'present';
   title: string;
   description: string;
   severity: 'low' | 'medium' | 'high' | 'critical';

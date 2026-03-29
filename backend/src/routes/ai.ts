@@ -11,6 +11,273 @@ const DEEP_MODEL = process.env.LAVA_MODEL_DEEP || DEFAULT_MODEL;
 
 type LavaMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 
+type TimelineEvent = {
+  age: number;
+  year: number;
+  type: 'past' | 'present';
+  title: string;
+  description: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  category: string;
+  avoided: boolean;
+};
+
+type PreventionOpportunity = {
+  age: number;
+  year: number;
+  title: string;
+  action: string;
+  rationale: string;
+  priority: 'medium' | 'high' | 'critical';
+};
+
+function asFiniteNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function asString(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+}
+
+function normalizeSeverity(value: unknown): TimelineEvent['severity'] {
+  if (value === 'low' || value === 'medium' || value === 'high' || value === 'critical') return value;
+  return 'medium';
+}
+
+function normalizePriority(value: unknown): PreventionOpportunity['priority'] {
+  if (value === 'medium' || value === 'high' || value === 'critical') return value;
+  return 'high';
+}
+
+function hasPredictiveLanguage(text: string): boolean {
+  const normalized = text.toLowerCase();
+  return [
+    'people with similar profiles',
+    'commonly experience',
+    'risk profile',
+    'future',
+    'forecast',
+    'projected',
+    'will develop',
+    'will have',
+    'may develop',
+    'could develop',
+    'x% of individuals',
+    'likely to experience',
+  ].some(pattern => normalized.includes(pattern));
+}
+
+function findMatchingBracket(source: string, startIndex: number, openChar: '[' | '{', closeChar: ']' | '}'): number {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = startIndex; i < source.length; i += 1) {
+    const char = source[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === '\\') {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (char === openChar) depth += 1;
+    if (char === closeChar) {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+
+  return -1;
+}
+
+function extractNamedArray(source: string, key: 'timeline' | 'opportunities'): string | null {
+  const keyIndex = source.indexOf(`"${key}"`);
+  if (keyIndex === -1) return null;
+  const arrayStart = source.indexOf('[', keyIndex);
+  if (arrayStart === -1) return null;
+  const arrayEnd = findMatchingBracket(source, arrayStart, '[', ']');
+  if (arrayEnd === -1) return null;
+  return source.slice(arrayStart, arrayEnd + 1);
+}
+
+function recoverPartialObjectArray(source: string, key: 'timeline' | 'opportunities'): unknown[] {
+  const keyIndex = source.indexOf(`"${key}"`);
+  if (keyIndex === -1) return [];
+  const arrayStart = source.indexOf('[', keyIndex);
+  if (arrayStart === -1) return [];
+
+  const items: unknown[] = [];
+  let inString = false;
+  let escaped = false;
+  let objectStart = -1;
+  let depth = 0;
+
+  for (let i = arrayStart + 1; i < source.length; i += 1) {
+    const char = source[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === '\\') {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (char === ']') break;
+
+    if (char === '{') {
+      if (depth === 0) objectStart = i;
+      depth += 1;
+      continue;
+    }
+
+    if (char === '}') {
+      depth -= 1;
+      if (depth === 0 && objectStart !== -1) {
+        const objectText = source.slice(objectStart, i + 1);
+        try {
+          items.push(JSON.parse(objectText));
+        } catch {
+          // Skip malformed partial object and continue scanning.
+        }
+        objectStart = -1;
+      }
+    }
+  }
+
+  return items;
+}
+
+function recoverTimelinePayload(source: string): { timeline: unknown[]; opportunities: unknown[] } | null {
+  const timelineArray = extractNamedArray(source, 'timeline');
+  if (!timelineArray) return null;
+
+  try {
+    const timeline = JSON.parse(timelineArray) as unknown[];
+    const opportunitiesArray = extractNamedArray(source, 'opportunities');
+    if (opportunitiesArray) {
+      try {
+        return {
+          timeline,
+          opportunities: JSON.parse(opportunitiesArray) as unknown[],
+        };
+      } catch {
+        return {
+          timeline,
+          opportunities: recoverPartialObjectArray(source, 'opportunities'),
+        };
+      }
+    }
+
+    return {
+      timeline,
+      opportunities: recoverPartialObjectArray(source, 'opportunities'),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function normalizeTimelineEvents(raw: unknown[], currentYear: number, currentAge: number): TimelineEvent[] {
+  const normalized = raw
+    .map((entry): TimelineEvent | null => {
+      if (!entry || typeof entry !== 'object') return null;
+      const item = entry as Record<string, unknown>;
+      const age = asFiniteNumber(item.age);
+      const year = asFiniteNumber(item.year);
+      if (age === null || year === null) return null;
+
+      const title = asString(item.title, 'Clinical event');
+      const description = asString(item.description, 'Clinical context noted in the record.');
+      if (age > currentAge || year > currentYear) return null;
+      if (hasPredictiveLanguage(`${title} ${description}`)) return null;
+
+      const rawType = item.type === 'present' ? 'present' : 'past';
+      const type: TimelineEvent['type'] = (age === currentAge || year === currentYear) ? 'present' : rawType;
+
+      return {
+        age,
+        year,
+        type,
+        title,
+        description,
+        severity: normalizeSeverity(item.severity),
+        category: asString(item.category, 'diagnosis'),
+        avoided: false,
+      };
+    })
+    .filter((entry): entry is TimelineEvent => Boolean(entry))
+    .sort((a, b) => (a.year - b.year) || (a.age - b.age));
+
+  const pastEvents = normalized.filter(event => event.year < currentYear && event.age < currentAge)
+    .map(event => ({ ...event, type: 'past' as const }));
+
+  const presentCandidate = [...normalized]
+    .filter(event => event.year <= currentYear && event.age <= currentAge)
+    .sort((a, b) => (b.year - a.year) || (b.age - a.age))[0];
+
+  if (!presentCandidate) {
+    return pastEvents.slice(-5);
+  }
+
+  const presentEvent: TimelineEvent = {
+    ...presentCandidate,
+    type: 'present',
+    age: Math.min(presentCandidate.age, currentAge),
+    year: Math.min(presentCandidate.year, currentYear),
+  };
+
+  return [...pastEvents.filter(event => event.year < presentEvent.year || event.age < presentEvent.age), presentEvent];
+}
+
+function normalizeOpportunities(raw: unknown[], currentYear: number, currentAge: number): PreventionOpportunity[] {
+  return raw
+    .map((entry): PreventionOpportunity | null => {
+      if (!entry || typeof entry !== 'object') return null;
+      const item = entry as Record<string, unknown>;
+      const age = asFiniteNumber(item.age);
+      const year = asFiniteNumber(item.year);
+      if (age === null || year === null) return null;
+      if (age >= currentAge || year >= currentYear) return null;
+
+      return {
+        age,
+        year,
+        title: asString(item.title, 'Earlier intervention point'),
+        action: asString(item.action, 'Preventive follow-up could have been escalated earlier.'),
+        rationale: asString(item.rationale, 'Earlier action may have changed the later clinical trajectory.'),
+        priority: normalizePriority(item.priority),
+      };
+    })
+    .filter((entry): entry is PreventionOpportunity => Boolean(entry))
+    .sort((a, b) => (a.year - b.year) || (a.age - b.age))
+    .slice(0, 4);
+}
+
 function getLavaAuthToken(): string {
   const token = process.env.LAVA_SECRET_KEY || process.env.LAVA_FORWARD_TOKEN;
   if (!token) throw new Error('Neither LAVA_SECRET_KEY nor LAVA_FORWARD_TOKEN is set in environment');
@@ -168,33 +435,55 @@ Keep the total response under 600 words. Use specific numbers. Be direct and evi
 `.trim();
 }
 
-// POST /api/ai/patient-timeline — generate a branchable timeline from patient data + medical history
+// POST /api/ai/patient-timeline — generate a retrospective timeline + prevention review
 router.post('/patient-timeline', async (req, res) => {
   try {
-    const { profile, medicalHistory, interventions } = req.body;
-    // interventions is optional — set when re-evaluating after applying them
-
+    const { profile, medicalHistory } = req.body;
     const currentYear = new Date().getFullYear();
-    const birthYear = currentYear - (profile.age || 40);
+    const currentAge = Math.max(0, Number(profile?.age) || 0);
 
-    const systemPrompt = `You are a clinical data analyst processing patient health records for Prophis. Return ONLY a valid JSON array of health timeline events — no prose, no markdown fences. IMPORTANT: Never use the words "predict", "will develop", or "will have". Instead frame all future events as statistical risk comparisons using phrases like "People with similar profiles commonly experience...", "X% of individuals with these risk factors develop...", or "Risk profile aligns with...". Each object must have: age (number), year (number), type ("past"|"present"|"risk"), title (string, max 7 words, no word "predict"), description (string, 1 sentence using risk similarity framing), severity ("low"|"medium"|"high"|"critical"), category ("diagnosis"|"lifestyle"|"medication"|"screening"|"risk_factor"|"intervention"|"outcome"), avoided (boolean). Rules: 2-4 past events, exactly 1 present, 3-5 risk events ordered by age ascending. If interventions are provided, mark reduced-risk outcomes as avoided=true.`;
+    const systemPrompt = `You are a clinical data analyst processing patient health records for Prophis. Return ONLY a valid JSON object with two keys: "timeline" and "opportunities". No prose, no markdown fences.
 
-    const interventionNote = interventions?.length
-      ? `\n\nThe following preventive interventions are now part of this patient's care plan. Re-show the risk profile with improved outcomes. Mark reduced-risk events as avoided=true and describe improved outcomes using phrases like "With this intervention, risk aligns more closely with non-diabetic population profiles.":\n${interventions.map((i: Record<string, string>) => `- ${i.name}: ${i.description}`).join('\n')}`
-      : '';
+"timeline" must be an array of chronological health events with these fields:
+- age (number)
+- year (number)
+- type ("past"|"present")
+- title (string, max 7 words)
+- description (string, 1 sentence grounded in the record)
+- severity ("low"|"medium"|"high"|"critical")
+- category ("diagnosis"|"lifestyle"|"medication"|"screening"|"risk_factor"|"symptom"|"outcome")
+- avoided (boolean, always false)
+
+"opportunities" must be an array of 2-4 retrospective prevention opportunities with these fields:
+- age (number)
+- year (number)
+- title (string, max 7 words)
+- action (string, 1 sentence describing what preventive action, screening, counseling, monitoring, or follow-up could have happened at that point)
+- rationale (string, 1 sentence explaining why that missed moment mattered for this patient's later trajectory)
+- priority ("medium"|"high"|"critical")
+
+Rules:
+- Build 3-6 past events and exactly 1 present event.
+- The final timeline event must be the present state at the patient's current age/year.
+- Do not include future risks, forecasts, projections, or hypothetical future years.
+- Every opportunity must point to an earlier moment in the history where prevention, earlier escalation, or better follow-up could reasonably have occurred.
+- Use the medical history first; if the record is sparse, infer only conservative, plausible prevention gaps from the demographics and stated history.
+- Keep titles short and keep action/rationale sentences concise.
+- Keep the language retrospective and analytical, not speculative.`;
 
     const userPrompt = `Patient: ${profile.name || 'Patient'}, Age ${profile.age}, ${profile.sex}, BMI ${profile.bmi || 'unknown'}, Ethnicity: ${profile.ethnicity || 'not stated'}, Smoker: ${profile.smoker ? 'Yes' : 'No'}, Family Hx: ${profile.familyHistory || 'none'}.
 
 Medical History:
 ${(medicalHistory || 'No history provided — infer realistic events from demographics.').slice(0, 800)}
-${interventionNote}
 
-Return JSON array only.`;
+Do not place any event after the current year ${currentYear} or after age ${currentAge}. Prevention opportunities must refer to past moments only.
+
+Return JSON object only.`;
 
     const rawText = await callLavaWithFallback({
       primaryModel: DEEP_MODEL,
       fallbackModel: SUMMARY_MODEL,
-      maxTokens: 1400,
+      maxTokens: 1800,
       temperature: 0.1,
       messages: [
         { role: 'system', content: systemPrompt },
@@ -205,29 +494,43 @@ Return JSON array only.`;
     // Strip markdown code fences if present
     const cleaned = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
 
-    let timeline: unknown[];
+    let parsed: unknown;
     try {
-      timeline = JSON.parse(cleaned);
+      parsed = JSON.parse(cleaned);
     } catch {
-      // Partial recovery: response was cut off mid-JSON — salvage complete objects
-      // Find the last complete event closing brace before the truncation
-      const lastComplete = cleaned.lastIndexOf('},');
-      const lastCompleteAlt = cleaned.lastIndexOf('}\n]');
-      const cutAt = Math.max(lastComplete, lastCompleteAlt);
-      if (cutAt !== -1) {
-        try {
-          const recovered = cleaned.slice(0, cutAt + 1) + '\n]';
-          timeline = JSON.parse(recovered);
-          console.warn(`patient-timeline: JSON was truncated, recovered ${(timeline as unknown[]).length} events`);
-        } catch {
-          return res.status(500).json({ error: 'Failed to parse timeline response', raw: rawText });
-        }
+      const recovered = recoverTimelinePayload(cleaned);
+      if (recovered) {
+        parsed = recovered;
+        console.warn('patient-timeline: JSON was truncated, recovered payload from partial response');
       } else {
-        return res.status(500).json({ error: 'Failed to parse timeline response', raw: rawText });
+        return res.status(500).json({ error: 'Failed to parse patient timeline response', raw: rawText });
       }
     }
 
-    return res.json({ timeline });
+    if (Array.isArray(parsed)) {
+      return res.json({ timeline: parsed, opportunities: [] });
+    }
+
+    const payload = (parsed && typeof parsed === 'object') ? parsed as {
+      timeline?: unknown[];
+      opportunities?: unknown[];
+    } : null;
+
+    if (!payload || !Array.isArray(payload.timeline)) {
+      return res.status(500).json({ error: 'Patient timeline payload missing timeline array', raw: rawText });
+    }
+
+    const timeline = normalizeTimelineEvents(payload.timeline, currentYear, currentAge);
+    const opportunities = normalizeOpportunities(
+      Array.isArray(payload.opportunities) ? payload.opportunities : [],
+      currentYear,
+      currentAge
+    );
+
+    return res.json({
+      timeline,
+      opportunities,
+    });
   } catch (err) {
     console.error('patient-timeline error:', err);
     return res.status(500).json({ error: String(err) });

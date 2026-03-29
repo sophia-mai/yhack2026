@@ -1,13 +1,13 @@
 # Prophis
 
-Prophis is a patient-context intelligence tool for public health analysis. It turns fragmented patient history into a readable timeline, connects that case to county-level health patterns, and helps surface where earlier intervention or monitoring may have changed the trajectory.
+Prophis is a patient-context intelligence tool for public health analysis. It turns fragmented patient history into a readable timeline, connects that case to county-level health patterns, and highlights where earlier preventive action or follow-up could have changed the trajectory.
 
 The current app combines:
 
 - an individual patient timeline
 - county-level context from County Health Rankings data
 - cohort/context signals such as diabetes similarity and health equity context
-- a preventability workflow for testing alternate intervention paths
+- a retrospective prevention review that calls out missed opportunities for earlier action
 
 ## Run locally
 

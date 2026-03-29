@@ -2742,6 +2742,93 @@ input[type="number"]:focus {
   padding: 0 30px 24px;
 }
 
+.retrospective-opportunity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  padding: 0 30px 28px;
+}
+
+.retrospective-opportunity-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 220px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(8, 16, 30, 0.95), rgba(5, 11, 20, 0.86)),
+    radial-gradient(circle at top right, rgba(255, 155, 61, 0.12), transparent 34%);
+  box-shadow:
+    0 18px 36px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.retrospective-opportunity-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.retrospective-opportunity-anchor {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(202, 216, 247, 0.62);
+}
+
+.retrospective-opportunity-priority {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.retrospective-opportunity-priority-medium {
+  background: rgba(96, 184, 255, 0.14);
+  color: #b7dcff;
+}
+
+.retrospective-opportunity-priority-high {
+  background: rgba(255, 184, 77, 0.16);
+  color: #ffd493;
+}
+
+.retrospective-opportunity-priority-critical {
+  background: rgba(255, 107, 107, 0.16);
+  color: #ffb0b0;
+}
+
+.retrospective-opportunity-title {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  color: var(--text-primary);
+}
+
+.retrospective-opportunity-action {
+  font-size: 13px;
+  line-height: 1.65;
+  color: rgba(232, 239, 255, 0.86);
+}
+
+.retrospective-opportunity-rationale {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 12px;
+  line-height: 1.58;
+  color: rgba(202, 216, 247, 0.7);
+}
+
 .similarity-card {
   position: relative;
   gap: 28px;
@@ -3152,11 +3239,8 @@ input[type="number"]:focus {
 .timeline-baseline {
   background: linear-gradient(
     90deg,
-    rgba(103, 125, 175, 0.3),
-    rgba(103, 125, 175, 0.7) 22%,
-    rgba(0, 212, 170, 0.95) 56%,
-    rgba(255, 155, 61, 0.95) 86%,
-    rgba(255, 87, 87, 0.75)
+    rgba(103, 125, 175, 0.7),
+    rgba(103, 125, 175, 0.9)
   );
 }
 
@@ -3168,9 +3252,9 @@ input[type="number"]:focus {
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(103, 125, 175, 0.25) 18%,
-    rgba(0, 212, 170, 0.28) 55%,
-    rgba(255, 155, 61, 0.22) 82%,
+    rgba(124, 139, 171, 0.22) 18%,
+    rgba(124, 139, 171, 0.32) 50%,
+    rgba(124, 139, 171, 0.22) 82%,
     transparent
   );
 }
@@ -3763,7 +3847,8 @@ input[type="number"]:focus {
   .timeline-header,
   .similarity-card,
   .timeline-utility-bar,
-  .timeline-inline-intervention-panel {
+  .timeline-inline-intervention-panel,
+  .retrospective-opportunity-grid {
     padding-left: 22px;
     padding-right: 22px;
   }
@@ -3791,6 +3876,10 @@ input[type="number"]:focus {
 
   .timeline-utility-status {
     justify-content: flex-start;
+  }
+
+  .retrospective-opportunity-grid {
+    grid-template-columns: 1fr;
   }
 
   .similarity-card {
