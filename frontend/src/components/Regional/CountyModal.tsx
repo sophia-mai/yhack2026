@@ -19,6 +19,18 @@ const METRICS: HealthMetric[] = [
   'mortalityRate',
 ];
 
+const METRIC_DEFINITIONS: Record<HealthMetric, string> = {
+  obesity: 'Adults with a body mass index of 30 or higher. Higher values suggest a larger share of residents facing obesity-related health risk.',
+  smoking: 'Adults who currently smoke cigarettes. Higher values usually point to elevated chronic disease and cardiovascular risk across the county.',
+  diabetes: 'Adults who have been told they have diabetes. Higher values suggest a heavier baseline burden of metabolic disease in the county.',
+  physicalInactivity: 'Adults reporting no leisure-time physical activity. Higher values can signal greater long-term risk for diabetes, heart disease, and poor mobility.',
+  mentalHealth: 'Adults reporting frequent mental distress. Higher values suggest a larger share of residents experiencing persistent mental health strain.',
+  heartDisease: 'Adults sleeping fewer than 7 hours on average. Higher values indicate more residents with insufficient sleep, which often compounds other health risks.',
+  copd: 'Adults reporting excessive drinking. Higher values can indicate added behavioral-health and chronic-disease risk in the county.',
+  checkups: 'Adults receiving a flu vaccination. Higher values generally reflect stronger preventive care uptake and better access to routine health services.',
+  mortalityRate: 'Years of potential life lost before age 75, reported per 100,000 residents. Higher values mean more premature death in the county.',
+};
+
 function formatMetricValue(metric: HealthMetric, value: number) {
   const unit = HEALTH_METRIC_UNITS[metric] ?? '%';
   if (unit === '/100k') return `${Math.round(value).toLocaleString()} ${unit}`;
@@ -38,14 +50,12 @@ export default function CountyModal({ county, onClose }: Props) {
   const { patientContext, selectedMetric } = useStore();
   const isMatchedCounty = patientContext?.matchedCountyFips === county.fips;
   const selectedMetricLabel = HEALTH_METRIC_LABELS[selectedMetric] ?? selectedMetric;
+  const selectedMetricDefinition = METRIC_DEFINITIONS[selectedMetric];
   const focusMetricValue = (county.health as Record<string, number>)[selectedMetric] ?? 0;
   const metricOrder = [
     selectedMetric,
     ...METRICS.filter(metric => metric !== selectedMetric),
   ];
-  const summaryCopy = isMatchedCounty
-    ? 'This county is the patient anchor. Use the highlighted metric and full county bar stack here as the baseline for comparison.'
-    : `This spotlight is the full county readout. The highlighted metric matches your map focus, and the rest of the bars give supporting context.`;
 
   return (
     <div className="modal-overlay" role="presentation" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -76,9 +86,9 @@ export default function CountyModal({ county, onClose }: Props) {
             {formatMetricValue(selectedMetric, focusMetricValue)}
           </div>
           <div className="modal-spotlight-copy">
-            <div className="modal-spotlight-label">{selectedMetricLabel}</div>
+            <div className="modal-spotlight-label">What This Metric Means</div>
             <div className="modal-context-summary">
-              {summaryCopy}
+              {selectedMetricDefinition}
             </div>
           </div>
         </div>

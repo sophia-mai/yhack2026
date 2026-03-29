@@ -247,43 +247,41 @@ function buildDimension(
   );
   const score = metrics.reduce((sum, m, i) => sum + m.nationalPct * metricWeights[i], 0);
 
-  const summary = buildDimensionSummary(name, score, metrics, raceKey);
+  const summary = buildDimensionSummary(name, score, metrics);
 
   return { name, weight, score: Math.round(score), metrics, summary };
 }
 
-function buildDimensionSummary(name: string, score: number, metrics: MetricPoint[], raceKey: RaceKey): string {
+function buildDimensionSummary(name: string, score: number, metrics: MetricPoint[]): string {
   const lvl = score >= 75 ? 'strong' : score >= 50 ? 'moderate' : score >= 30 ? 'below average' : 'poor';
-  const forLabel = raceKey ? ` for ${raceLabel(raceKey)}` : '';
   if (name === 'Health Outcomes') {
     const le = metrics.find(m => m.label === 'Life Expectancy');
     const leVal = le?.countyValue?.toFixed(1) ?? 'N/A';
-    return `${name} in this county are ${lvl}${forLabel}. Local life expectancy is ${leVal} years (${le?.nationalPct ?? '—'}th percentile nationally).`;
+    return `${name} in this county are ${lvl}. Local life expectancy is ${leVal} years (${le?.nationalPct ?? '—'}th percentile nationally).`;
   }
   if (name === 'Economic Equity') {
     const inc = metrics.find(m => m.label === 'Median Household Income');
     const incVal = inc?.countyValue != null ? `$${Math.round(inc.countyValue / 1000)}k` : 'N/A';
-    return `Economic conditions${forLabel} are ${lvl}. Median household income is ${incVal} (${inc?.nationalPct ?? '—'}th percentile nationally).`;
+    return `Economic conditions are ${lvl}. Median household income is ${incVal} (${inc?.nationalPct ?? '—'}th percentile nationally).`;
   }
   // Healthcare Access
   const vax = metrics.find(m => m.label === 'Flu Vaccination Rate');
   const vaxVal = vax?.countyValue?.toFixed(0) ?? 'N/A';
-  return `Healthcare access${forLabel} is ${lvl}. Flu vaccination coverage is ${vaxVal}% (${vax?.nationalPct ?? '—'}th percentile nationally).`;
+  return `Healthcare access is ${lvl}. Flu vaccination coverage is ${vaxVal}% (${vax?.nationalPct ?? '—'}th percentile nationally).`;
 }
 
 // ── Headline generator ────────────────────────────────────────────────────────
-function buildHeadline(score: number, countyName: string, raceLabel: string): string {
-  const forLabel = raceLabel !== 'all residents' ? ` for ${raceLabel}` : '';
+function buildHeadline(score: number, countyName: string): string {
   if (score >= 75) {
-    return `${countyName} provides relatively strong health conditions${forLabel}, scoring in the top quarter nationally. Community resources and outcomes compare favorably to demographically similar counties.`;
+    return `${countyName} provides relatively strong health conditions, scoring in the top quarter nationally. Community resources and outcomes compare favorably to demographically similar counties.`;
   }
   if (score >= 55) {
-    return `${countyName} shows mixed health equity${forLabel}, with some dimensions performing well and others trailing the national median. Targeted investments in the weaker dimensions could meaningfully improve outcomes.`;
+    return `${countyName} shows mixed health equity, with some dimensions performing well and others trailing the national median. Targeted investments in the weaker dimensions could meaningfully improve outcomes.`;
   }
   if (score >= 40) {
-    return `${countyName} faces notable health equity challenges${forLabel}, with several dimensions performing below the national median. This county would benefit from focused community health investments.`;
+    return `${countyName} faces notable health equity challenges, with several dimensions performing below the national median. This county would benefit from focused community health investments.`;
   }
-  return `${countyName} is among the counties with the most significant health equity gaps${forLabel}. Conditions across health outcomes, economic equity, and healthcare access place this community in the bottom tier nationally.`;
+  return `${countyName} is among the counties with the most significant health equity gaps. Conditions across health outcomes, economic equity, and healthcare access place this community in the bottom tier nationally.`;
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -327,6 +325,6 @@ export function runDemographicEngine(input: DemoEngineInput): DemographicInsight
     countyName: matchedCounty.name,
     peerCount: peers.length,
     dimensions: [d1, d2, d3],
-    headline: buildHeadline(compositeScore, matchedCounty.name, rl),
+    headline: buildHeadline(compositeScore, matchedCounty.name),
   };
 }

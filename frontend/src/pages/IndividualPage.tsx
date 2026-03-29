@@ -485,12 +485,6 @@ export default function IndividualPage() {
                 >
                   ↗ View Population Context
                 </button>
-                <button
-                  className="btn-simulate-interventions"
-                  onClick={() => setShowInterventionPanel(prev => !prev)}
-                >
-                  {showInterventionPanel ? '✕ Close Preventions' : '⚕ Simulate Preventions'}
-                </button>
               </div>
             </div>
 
@@ -567,65 +561,69 @@ export default function IndividualPage() {
               </div>
             )}
 
-            <div className="timeline-utility-bar">
-              <div className="timeline-utility-copy">
-                <span className="intervention-strip-label">Prevention Studio</span>
-                <div className="timeline-utility-title">Model alternate futures before the next event lands.</div>
-                <div className="timeline-utility-subtitle">
-                  Select prevention options and re-run the patient timeline against the same medical record and county context.
-                </div>
-              </div>
-              <div className="timeline-utility-status">
-                <span className="timeline-utility-count">{activeInterventions.size} selected</span>
-              </div>
-            </div>
-
-            {showInterventionPanel && (
-              <div className="timeline-inline-intervention-panel">
-                <div className="intervention-panel-topline">
-                  <span className="intervention-strip-label">Scenario Controls</span>
-                  <span className="intervention-panel-count">{activeInterventions.size} selected</span>
-                </div>
-                <div className="intervention-panel-title">Choose interventions to rewrite the projected path.</div>
-                <div className="intervention-panel-subtitle">
-                  Each selection is passed back into the timeline generator so avoided outcomes can be marked directly on the future track.
-                </div>
-                <div className="intervention-chips">
-                  {INTERVENTIONS.map(intervention => (
-                    <button
-                      key={intervention.id}
-                      type="button"
-                      className={`intervention-chip${activeInterventions.has(intervention.id) ? ' active' : ''}`}
-                      onClick={() => toggleIntervention(intervention.id)}
-                      title={intervention.description}
-                    >
-                      <span className="intervention-chip-check">{activeInterventions.has(intervention.id) ? '✓' : '+'}</span>
-                      {intervention.name}
-                    </button>
-                  ))}
-                </div>
-                <div className="intervention-panel-footer">
-                  <div className="intervention-panel-note">
-                    {activeInterventions.size > 0
-                      ? 'Selected interventions will mark prevented outcomes directly on the projected health path.'
-                      : 'Pick at least one intervention to compare the baseline timeline against an alternate future.'}
-                  </div>
-                  <button
-                    className="btn-reevaluate"
-                    onClick={handleSimulateInterventions}
-                    disabled={reloading || activeInterventions.size === 0}
-                  >
-                    {reloading
-                      ? <><div className="btn-spinner btn-spinner-sm" />Re-evaluating risk profile…</>
-                      : `↺ Apply ${activeInterventions.size} intervention${activeInterventions.size > 1 ? 's' : ''}`}
-                  </button>
-                </div>
-              </div>
-            )}
-
             <div className="timeline-stage-shell">
               {/* 2D Horizontal Timeline Canvas */}
               <HorizontalTimeline events={timeline} />
+            </div>
+
+            <div className="timeline-prevention-section">
+              <div className="timeline-utility-bar">
+                <div className="timeline-utility-copy">
+                  <span className="intervention-strip-label">Prevention Studio</span>
+                  <div className="timeline-utility-title">Model alternate futures before the next event lands.</div>
+                  <div className="timeline-utility-subtitle">
+                    Select prevention options and re-run the patient timeline against the same medical record and county context.
+                  </div>
+                </div>
+                <div className="timeline-utility-status">
+                  <span className="timeline-utility-count">{activeInterventions.size} selected</span>
+                  <button
+                    className="btn-simulate-interventions"
+                    onClick={() => setShowInterventionPanel(prev => !prev)}
+                  >
+                    {showInterventionPanel ? 'Hide Prevention Studio' : 'Open Prevention Studio'}
+                  </button>
+                </div>
+              </div>
+
+              {showInterventionPanel && (
+                <div className="timeline-inline-intervention-panel">
+                  <div className="intervention-panel-title">Choose interventions to rewrite the projected path.</div>
+                  <div className="intervention-panel-subtitle">
+                    Each selection is passed back into the timeline generator so avoided outcomes can be marked directly on the future track.
+                  </div>
+                  <div className="intervention-chips">
+                    {INTERVENTIONS.map(intervention => (
+                      <button
+                        key={intervention.id}
+                        type="button"
+                        className={`intervention-chip${activeInterventions.has(intervention.id) ? ' active' : ''}`}
+                        onClick={() => toggleIntervention(intervention.id)}
+                        title={intervention.description}
+                      >
+                        <span className="intervention-chip-check">{activeInterventions.has(intervention.id) ? '✓' : '+'}</span>
+                        {intervention.name}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="intervention-panel-footer">
+                    <div className="intervention-panel-note">
+                      {activeInterventions.size > 0
+                        ? 'Selected interventions will mark prevented outcomes directly on the projected health path.'
+                        : 'Pick at least one intervention to compare the baseline timeline against an alternate future.'}
+                    </div>
+                    <button
+                      className="btn-reevaluate"
+                      onClick={handleSimulateInterventions}
+                      disabled={reloading || activeInterventions.size === 0}
+                    >
+                      {reloading
+                        ? <><div className="btn-spinner btn-spinner-sm" />Re-evaluating risk profile…</>
+                        : `↺ Apply ${activeInterventions.size} intervention${activeInterventions.size > 1 ? 's' : ''}`}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -701,14 +699,7 @@ function DimensionTile({ dim }: { dim: DemographicInsight['dimensions'][number] 
         return (
           <div key={m.label} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
-                {m.label}
-                {m.dataSource === 'race' && (
-                  <span style={{ marginLeft: 4, fontSize: 9, color: 'var(--accent-blue)', fontStyle: 'italic' }}>
-                    ({m.raceLabel})
-                  </span>
-                )}
-              </span>
+              <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{m.label}</span>
               <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)' }}>{valStr}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -755,20 +746,10 @@ function HealthEquityScoreCard({ insight: ins }: { insight: DemographicInsight }
         </div>
         {/* Text block */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 5 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
-              Health Equity Score
-            </span>
-            {ins.raceLabel !== 'all residents' && (
-              <span style={{
-                fontSize: 9, fontWeight: 700, color: 'var(--accent-blue)',
-                background: 'rgba(96,184,255,0.12)',
-                border: '1px solid rgba(96,184,255,0.3)',
-                borderRadius: 99, padding: '2px 7px',
-              }}>
-                {ins.raceLabel}
-              </span>
-            )}
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+            {ins.raceLabel !== 'all residents'
+              ? `Health Equity Score (${ins.raceLabel})`
+              : 'Health Equity Score'}
           </div>
           <div style={{ fontSize: 10, color: 'var(--text-dim)', lineHeight: 1.6 }}>{ins.headline}</div>
           <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 2 }}>

@@ -54,13 +54,6 @@ function computePercentile(values: number[], value: number) {
   return Math.round((lower / values.length) * 100);
 }
 
-function formatMetricValue(metric: HealthMetric, value: number | null) {
-  if (value === null || Number.isNaN(value)) return '—';
-  const unit = HEALTH_METRIC_UNITS[metric] ?? '%';
-  if (unit === '/100k') return `${Math.round(value).toLocaleString()} ${unit}`;
-  return `${value.toFixed(1)}${unit}`;
-}
-
 function formatMetricDelta(metric: HealthMetric, value: number | null) {
   if (value === null || Number.isNaN(value)) return '—';
   const unit = HEALTH_METRIC_UNITS[metric] ?? '%';
@@ -70,12 +63,30 @@ function formatMetricDelta(metric: HealthMetric, value: number | null) {
   return `${sign}${absolute.toFixed(1)}${unit}`;
 }
 
-function getPercentileSummary(percentile: number | null) {
-  if (percentile === null) return 'National rank unavailable.';
-  if (percentile >= 90) return `This county is above ${percentile}% of counties on this measure.`;
-  if (percentile >= 70) return `This county sits in the upper tier nationally at the ${percentile}th percentile.`;
-  if (percentile >= 40) return `This county is near the middle of the national distribution.`;
-  return `This county is below most counties nationally at the ${percentile}th percentile.`;
+function getComparisonNarrative(
+  countyName: string,
+  metricLabel: string,
+  stateCode: string,
+  stateDelta: number | null,
+  percentile: number | null
+) {
+  const statePosition = stateDelta === null
+    ? 'A state comparison is not available yet.'
+    : Math.abs(stateDelta) < 0.2
+      ? `${countyName} is roughly in line with the ${stateCode} average for ${metricLabel.toLowerCase()}.`
+      : stateDelta > 0
+        ? `${countyName} runs above the ${stateCode} average for ${metricLabel.toLowerCase()}.`
+        : `${countyName} runs below the ${stateCode} average for ${metricLabel.toLowerCase()}.`;
+
+  const nationalPosition = percentile === null
+    ? 'National rank is unavailable.'
+    : percentile >= 75
+      ? `Nationally it sits in the upper tier at the ${percentile}th percentile.`
+      : percentile >= 40
+        ? `Nationally it lands near the middle at the ${percentile}th percentile.`
+        : `Nationally it sits in the lower tier at the ${percentile}th percentile.`;
+
+  return `${statePosition} ${nationalPosition}`;
 }
 
 function getComparableCounties(target: CountyRecord, counties: CountyRecord[]) {
@@ -174,10 +185,10 @@ export default function MapPage() {
   const focusSummary = matchedCounty
     ? `Track ${selectedMetricLabel.toLowerCase()} around ${matchedCounty.name}, ${matchedCounty.state} using the ${activeMode.label.toLowerCase()} lens.`
     : `Track ${selectedMetricLabel.toLowerCase()} across counties using the ${activeMode.label.toLowerCase()} lens.`;
-  const benchmarkCopy = activeCounty
+  const comparisonNarrative = activeCounty
     ? isActiveCountyMatched
-      ? `This is the patient anchor county. Use it as the baseline for every county comparison.`
-      : getPercentileSummary(percentile)
+      ? 'This selected county is the patient anchor. Use it as the baseline, then compare peers and generate interpretation on the right.'
+      : getComparisonNarrative(activeCounty.name, selectedMetricLabel, activeCounty.state, stateDelta, percentile)
     : null;
 
   return (
@@ -308,22 +319,20 @@ export default function MapPage() {
             {activeCounty ? (
               <>
                 <div className="population-panel-card">
-                  <div className="section-label">Benchmark Read</div>
-                  <div className="population-benchmark-hero">
-                    <div className="population-benchmark-value">
-                      {formatMetricValue(selectedMetric, activeMetricValue)}
-                    </div>
-                    <div className="population-benchmark-label">{HEALTH_METRIC_LABELS[selectedMetric]}</div>
-                    <div className="population-benchmark-copy">{benchmarkCopy}</div>
-                  </div>
+                  <div className="section-label">Quick Compare</div>
+                  <div className="population-compare-summary">{comparisonNarrative}</div>
                   <div className="population-bridge-list">
                     <div className="population-bridge-row">
-                      <span>Vs {activeCounty.state} average</span>
-                      <strong>{formatMetricDelta(selectedMetric, stateDelta)}</strong>
+                      <span>Role in this view</span>
+                      <strong>{isActiveCountyMatched ? 'Patient anchor' : 'Comparison county'}</strong>
                     </div>
                     <div className="population-bridge-row">
-                      <span>Vs national average</span>
-                      <strong>{formatMetricDelta(selectedMetric, nationalDelta)}</strong>
+                      <span>Gap vs patient anchor</span>
+                      <strong>{formatMetricDelta(selectedMetric, matchedCountyDelta)}</strong>
+                    </div>
+                    <div className="population-bridge-row">
+                      <span>Gap vs {activeCounty.state} average</span>
+                      <strong>{formatMetricDelta(selectedMetric, stateDelta)}</strong>
                     </div>
                     <div className="population-bridge-row">
                       <span>National percentile</span>
@@ -342,14 +351,8 @@ export default function MapPage() {
                       </strong>
                     </div>
                     <div className="population-bridge-row">
-                      <span>Selected metric gap vs matched county</span>
-                      <strong>
-                        {formatMetricDelta(selectedMetric, matchedCountyDelta)}
-                      </strong>
-                    </div>
-                    <div className="population-bridge-row">
-                      <span>County role</span>
-                      <strong>{isActiveCountyMatched ? 'Patient anchor' : 'Comparison county'}</strong>
+                      <span>Gap vs national average</span>
+                      <strong>{formatMetricDelta(selectedMetric, nationalDelta)}</strong>
                     </div>
                   </div>
                   {matchedCounty && !isActiveCountyMatched && (
@@ -360,30 +363,6 @@ export default function MapPage() {
                       Jump to patient anchor
                     </button>
                   )}
-                </div>
-
-                <div className="population-panel-card">
-                  <div className="section-label">Community Conditions</div>
-                  <div className="population-context-grid">
-                    <div className="population-context-stat">
-                      <div className="population-context-value">{activeCounty.demographics.pctPoverty.toFixed(1)}%</div>
-                      <div className="population-context-label">Below poverty line</div>
-                    </div>
-                    <div className="population-context-stat">
-                      <div className="population-context-value">{activeCounty.demographics.pctUninsured.toFixed(1)}%</div>
-                      <div className="population-context-label">Uninsured</div>
-                    </div>
-                    <div className="population-context-stat">
-                      <div className="population-context-value">{activeCounty.demographics.pctElderly.toFixed(1)}%</div>
-                      <div className="population-context-label">Age 65+</div>
-                    </div>
-                    <div className="population-context-stat">
-                      <div className="population-context-value population-context-value-accent">
-                        {activeCounty.svi.overall.toFixed(3)}
-                      </div>
-                      <div className="population-context-label">SVI score</div>
-                    </div>
-                  </div>
                 </div>
 
                 <div className="population-panel-card">

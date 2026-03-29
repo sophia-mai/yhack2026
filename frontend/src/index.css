@@ -1179,10 +1179,19 @@ select:focus {
   align-items: center;
   gap: 8px;
   font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+
+.impact-bar-row-active {
+  background: rgba(0, 212, 170, 0.08);
+  border: 1px solid rgba(0, 212, 170, 0.16);
 }
 
 .impact-bar-label {
-  width: 110px;
+  width: 148px;
   color: var(--text-secondary);
   flex-shrink: 0;
   font-size: 11px;
@@ -1199,6 +1208,10 @@ select:focus {
   height: 100%;
   border-radius: 3px;
   transition: width 0.5s ease;
+}
+
+.impact-bar-fill-active {
+  box-shadow: 0 0 16px rgba(0, 212, 170, 0.18);
 }
 
 .impact-bar-val {
@@ -2638,6 +2651,10 @@ input[type="number"]:focus {
 }
 
 .btn-simulate-interventions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
   padding: 11px 16px;
   border-radius: 12px;
   border: 1px solid rgba(0, 212, 170, 0.3);
@@ -2661,18 +2678,19 @@ input[type="number"]:focus {
   transform: translateY(-1px);
 }
 
+.timeline-prevention-section {
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  background:
+    linear-gradient(180deg, rgba(8, 17, 30, 0.88), rgba(6, 14, 24, 0.76)),
+    radial-gradient(circle at top right, rgba(0, 212, 170, 0.1), transparent 34%);
+}
+
 .timeline-utility-bar {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
-  padding: 18px 30px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  background: linear-gradient(
-    180deg,
-    rgba(8, 17, 30, 0.86),
-    rgba(7, 14, 25, 0.6)
-  );
+  padding: 22px 30px 18px;
 }
 
 .timeline-utility-copy {
@@ -2701,6 +2719,8 @@ input[type="number"]:focus {
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .timeline-utility-count {
@@ -2718,16 +2738,8 @@ input[type="number"]:focus {
 .timeline-inline-intervention-panel {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 20px 30px 22px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  background:
-    linear-gradient(180deg, rgba(6, 14, 26, 0.96), rgba(6, 14, 24, 0.88)),
-    radial-gradient(
-      circle at top right,
-      rgba(0, 212, 170, 0.12),
-      transparent 34%
-    );
+  gap: 12px;
+  padding: 0 30px 24px;
 }
 
 .similarity-card {
@@ -2869,7 +2881,7 @@ input[type="number"]:focus {
 }
 
 .intervention-panel-title {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: -0.04em;
@@ -2877,7 +2889,6 @@ input[type="number"]:focus {
 }
 
 .intervention-panel-subtitle {
-  margin-top: 8px;
   color: rgba(202, 216, 247, 0.7);
   font-size: 13px;
   line-height: 1.55;
@@ -4251,64 +4262,13 @@ input[type="number"]:focus {
   text-align: right;
 }
 
-.population-benchmark-hero {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 16px;
-  border-radius: 16px;
-  background: linear-gradient(180deg, rgba(10, 18, 31, 0.94), rgba(17, 27, 44, 0.82));
-  border: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.population-benchmark-value {
-  font-size: 34px;
-  font-weight: 800;
-  letter-spacing: -0.05em;
-  color: var(--text-primary);
-}
-
-.population-benchmark-label {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(202, 216, 247, 0.72);
-}
-
-.population-benchmark-copy {
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--text-secondary);
-}
-
-.population-context-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.population-context-stat {
-  padding: 14px;
+.population-compare-summary {
+  padding: 14px 16px;
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(8, 16, 29, 0.48);
-}
-
-.population-context-value {
-  font-size: 28px;
-  font-weight: 800;
-  letter-spacing: -0.05em;
-  color: var(--text-primary);
-}
-
-.population-context-value-accent {
-  color: var(--accent-purple);
-}
-
-.population-context-label {
-  margin-top: 6px;
-  font-size: 11px;
+  background: linear-gradient(180deg, rgba(10, 17, 31, 0.94), rgba(13, 24, 40, 0.84));
+  font-size: 13px;
+  line-height: 1.65;
   color: var(--text-secondary);
 }
 
@@ -4336,7 +4296,7 @@ input[type="number"]:focus {
 
 .modal-spotlight-value {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
   padding: 18px 16px;
   border-radius: 18px;
@@ -4345,6 +4305,7 @@ input[type="number"]:focus {
   font-size: 34px;
   font-weight: 800;
   letter-spacing: -0.05em;
+  line-height: 1;
   color: var(--text-primary);
 }
 
@@ -4425,7 +4386,6 @@ input[type="number"]:focus {
   .diabetes-context-stats,
   .population-metric-grid,
   .population-selector-grid,
-  .population-context-grid,
   .modal-glance-grid,
   .population-mode-pill-row,
   .modal-spotlight-hero {
