@@ -1,4 +1,21 @@
-import type { CountyRecord, MetricInsight } from '../types';
+import type { CountyRecord } from '../types';
+
+// Legacy insight type — kept for reference only; use DemographicInsight for new code
+export interface MetricInsight {
+  metric:             string;
+  label:              string;
+  unit:               string;
+  userCountyValue:    number;
+  nationalPercentile: number;
+  peerCountyAvg:      number;
+  peerCountyRange:    [number, number];
+  nationalAvg:        number;
+  personalAlignment: {
+    alignment: 'higher' | 'lower' | 'similar';
+    detail:    string;
+  };
+  interpretation: string;
+}
 
 // ── Demographic feature weights for peer-county Euclidean distance ──────────
 // Weights reflect which axes are most meaningful for health outcome similarity.

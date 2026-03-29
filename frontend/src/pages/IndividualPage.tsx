@@ -2,8 +2,8 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useStore } from '../store/useStore';
 import { generatePatientTimeline, getSimilarityScore } from '../api/client';
 import type { TimelineEvent, SimilarityResult } from '../api/client';
-import { runSimilarityEngine } from '../utils/similarityEngine';
-import type { MetricInsight } from '../types';
+import { runDemographicEngine } from '../utils/demographicEngine';
+import type { DemographicInsight } from '../types';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface PatientProfile {
@@ -67,7 +67,7 @@ export default function IndividualPage() {
   const [activeInterventions, setActiveInterventions] = useState<Set<string>>(new Set());
   const [showInterventionPanel, setShowInterventionPanel] = useState(false);
   const [reloading, setReloading] = useState(false);
-  const [insights, setInsights] = useState<MetricInsight[] | null>(null);
+  const [insight, setInsight] = useState<DemographicInsight | null>(null);
   const [showInsights, setShowInsights] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const counties = useStore(s => s.counties);
@@ -96,7 +96,7 @@ export default function IndividualPage() {
   async function handleGenerate() {
     if (!profile.age || !profile.name) { setError('Please enter a patient name and age.'); return; }
     setLoading(true); setError(null); setTimeline(null); setSimilarity(null);
-    setInsights(null); setShowInsights(false);
+    setInsight(null); setShowInsights(false);
     setActiveInterventions(new Set()); setShowInterventionPanel(false);
     try {
       const bmi = calcBMI();
@@ -123,19 +123,20 @@ export default function IndividualPage() {
       ]);
       setTimeline(timelineRes.timeline);
       setSimilarity(simRes);
-      // Community health context engine (client-side, synchronous)
+      // Community health equity engine (client-side, synchronous)
       const bmiNum = bmi ? parseFloat(bmi) : null;
       if (matchedCounty) {
-        setInsights(runSimilarityEngine({
+        setInsight(runDemographicEngine({
           matchedCounty,
           allCounties: counties,
+          ethnicity: profile.ethnicity,
           bmi: bmiNum,
           smoker: profile.smoker,
           familyHistory: profile.familyHistory,
         }));
         setShowInsights(true);
       } else {
-        setInsights(null);
+        setInsight(null);
       }
     } catch (err) { setError(String(err)); }
     finally { setLoading(false); }
@@ -407,8 +408,8 @@ export default function IndividualPage() {
               </div>
             )}
 
-            {/* ── Community Health Context (Layers 2–4 insight engine) ── */}
-            {insights && (
+            {/* ── Community Health Equity Score ── */}
+            {insight && (
               <div style={{ borderBottom: '1px solid var(--border-subtle)', flexShrink: 0 }}>
                 <button
                   type="button"
@@ -421,15 +422,15 @@ export default function IndividualPage() {
                   onClick={() => setShowInsights(v => !v)}
                 >
                   <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-dim)' }}>
-                    Community Health Context
+                    Community Health Equity Context
                   </span>
                   <span style={{ fontSize: 11, color: 'var(--accent-blue)' }}>
-                    {showInsights ? '▲ Hide' : '▼ Show'} {insights.length} metrics
+                    {showInsights ? '▲ Hide' : '▼ Show'} · Grade {insight.grade}
                   </span>
                 </button>
                 {showInsights && (
-                  <div style={{ padding: '0 24px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {insights.map(ins => <InsightTile key={ins.metric} insight={ins} />)}
+                  <div style={{ padding: '0 24px 16px' }}>
+                    <HealthEquityScoreCard insight={insight} />
                   </div>
                 )}
               </div>
@@ -506,76 +507,137 @@ function getEventVisual(event: TimelineEvent) {
   return TYPE_CONFIG[event.type as keyof typeof TYPE_CONFIG] ?? TYPE_CONFIG.past;
 }
 
-// ── InsightTile ──────────────────────────────────────────────────────────────
-const ALIGNMENT_CONFIG = {
-  higher:  { color: '#FF9B3D', label: 'Higher than county avg', dot: '▲' },
-  lower:   { color: 'var(--accent-primary)', label: 'Lower than county avg', dot: '▼' },
-  similar: { color: 'var(--text-secondary)', label: 'Similar to county avg', dot: '●' },
-} as const;
+// ── Health Equity Score Components ───────────────────────────────────────────
+const GRADE_COLORS: Record<string, string> = {
+  A: '#00D4AA', B: '#60B8FF', C: '#FFB84D', D: '#FF9B3D', F: '#FF6B6B',
+};
+const DIM_ICONS: Record<string, string> = {
+  'Health Outcomes': '❤️',
+  'Economic Equity': '💰',
+  'Healthcare Access': '🏥',
+};
 
-function InsightTile({ insight: ins }: { insight: MetricInsight }) {
-  const alignCfg = ALIGNMENT_CONFIG[ins.personalAlignment.alignment];
-  const barPct   = Math.min(100, Math.max(0, ins.nationalPercentile));
-  const barColor =
-    barPct >= 75 ? '#FF6B6B'
-    : barPct >= 50 ? '#FF9B3D'
-    : barPct >= 25 ? '#FFB84D'
-    : 'var(--accent-primary)';
+function scoreColor(pct: number): string {
+  if (pct >= 75) return '#00D4AA';
+  if (pct >= 50) return '#60B8FF';
+  if (pct >= 30) return '#FF9B3D';
+  return '#FF6B6B';
+}
 
+function DimensionTile({ dim }: { dim: DemographicInsight['dimensions'][number] }) {
+  const sc = scoreColor(dim.score);
   return (
-    <div className="card-glass" style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {/* Label + personal alignment badge */}
+    <div className="card-glass" style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
-          {ins.label}
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>
+          {DIM_ICONS[dim.name]} {dim.name}
         </span>
         <span style={{
-          fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
-          color: alignCfg.color,
-          background: `${alignCfg.color}22`,
-          border: `1px solid ${alignCfg.color}55`,
-          borderRadius: 99, padding: '2px 9px',
-        }}>
-          {alignCfg.dot} {alignCfg.label}
-        </span>
+          fontSize: 13, fontWeight: 800, color: sc,
+          background: `${sc}18`, borderRadius: 6, padding: '2px 8px',
+        }}>{dim.score}</span>
       </div>
-
-      {/* County value + national percentile bar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', fontFamily: '"Outfit", sans-serif', letterSpacing: '-0.03em', flexShrink: 0 }}>
-          {ins.userCountyValue.toFixed(1)}
-          <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-dim)', marginLeft: 2 }}>{ins.unit}</span>
-        </span>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-dim)' }}>
-            <span>National percentile</span>
-            <span style={{ color: barColor, fontWeight: 700 }}>{ins.nationalPercentile}th</span>
+      {/* Score bar */}
+      <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden' }}>
+        <div style={{
+          height: '100%', borderRadius: 2, background: sc,
+          width: `${dim.score}%`,
+          transition: 'width 0.9s cubic-bezier(0.16, 1, 0.3, 1)',
+        }} />
+      </div>
+      {/* Summary */}
+      <div style={{ fontSize: 10, color: 'var(--text-dim)', lineHeight: 1.55 }}>{dim.summary}</div>
+      {/* Metric rows */}
+      {dim.metrics.map(m => {
+        const mc = scoreColor(m.nationalPct);
+        const valStr = m.countyValue != null
+          ? (m.unit === '' ? `$${Math.round(m.countyValue / 1000)}k` : `${m.countyValue.toFixed(1)}${m.unit}`)
+          : 'N/A';
+        const peerStr = m.peerAvg != null
+          ? (m.unit === '' ? `$${Math.round(m.peerAvg / 1000)}k` : `${m.peerAvg.toFixed(1)}${m.unit}`)
+          : '—';
+        return (
+          <div key={m.label} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
+                {m.label}
+                {m.dataSource === 'race' && (
+                  <span style={{ marginLeft: 4, fontSize: 9, color: 'var(--accent-blue)', fontStyle: 'italic' }}>
+                    ({m.raceLabel})
+                  </span>
+                )}
+              </span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)' }}>{valStr}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ flex: 1, height: 3, background: 'rgba(255,255,255,0.05)', borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%', borderRadius: 2, background: mc,
+                  width: `${m.nationalPct}%`,
+                  transition: 'width 0.9s cubic-bezier(0.16, 1, 0.3, 1)',
+                }} />
+              </div>
+              <span style={{ fontSize: 9, color: mc, fontWeight: 700, width: 28, textAlign: 'right' }}>
+                {m.nationalPct}th
+              </span>
+            </div>
+            {m.peerAvg !== null && (
+              <div style={{ fontSize: 9, color: 'var(--text-dim)' }}>
+                Peer avg: <span style={{ color: 'var(--text-secondary)' }}>{peerStr}</span>
+              </div>
+            )}
           </div>
-          <div style={{ height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden' }}>
-            <div style={{
-              height: '100%', borderRadius: 2, background: barColor,
-              width: `${barPct}%`,
-              transition: 'width 0.8s cubic-bezier(0.16, 1, 0.3, 1)',
-            }} />
+        );
+      })}
+    </div>
+  );
+}
+
+function HealthEquityScoreCard({ insight: ins }: { insight: DemographicInsight }) {
+  const gc = GRADE_COLORS[ins.grade] ?? '#60B8FF';
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Headline card */}
+      <div className="card-glass" style={{ padding: '16px', display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+        {/* Grade ring */}
+        <div style={{
+          width: 72, height: 72, flexShrink: 0,
+          borderRadius: '50%',
+          border: `3px solid ${gc}`,
+          background: `${gc}12`,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          boxShadow: `0 0 18px ${gc}30`,
+        }}>
+          <span style={{ fontSize: 26, fontWeight: 900, color: gc, lineHeight: 1, fontFamily: '"Outfit", sans-serif' }}>{ins.grade}</span>
+          <span style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 1 }}>{ins.compositeScore}/100</span>
+        </div>
+        {/* Text block */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+              Health Equity Score
+            </span>
+            {ins.raceLabel !== 'all residents' && (
+              <span style={{
+                fontSize: 9, fontWeight: 700, color: 'var(--accent-blue)',
+                background: 'rgba(96,184,255,0.12)',
+                border: '1px solid rgba(96,184,255,0.3)',
+                borderRadius: 99, padding: '2px 7px',
+              }}>
+                {ins.raceLabel}
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--text-dim)', lineHeight: 1.6 }}>{ins.headline}</div>
+          <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 2 }}>
+            Benchmarked against {ins.peerCount} demographically similar counties · Scoring uses race-specific data where available
           </div>
         </div>
       </div>
-
-      {/* Peer stats row */}
-      <div style={{ display: 'flex', gap: 16, fontSize: 11, color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
-        <span>Peer avg: <strong style={{ color: 'var(--text-primary)' }}>{ins.peerCountyAvg.toFixed(1)}{ins.unit}</strong></span>
-        <span>Peer range: <strong style={{ color: 'var(--text-primary)' }}>{ins.peerCountyRange[0].toFixed(1)}–{ins.peerCountyRange[1].toFixed(1)}{ins.unit}</strong></span>
-        <span>National avg: <strong style={{ color: 'var(--text-primary)' }}>{ins.nationalAvg.toFixed(1)}{ins.unit}</strong></span>
-      </div>
-
-      {/* Personal alignment detail */}
-      <div style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.55, borderTop: '1px solid var(--border-subtle)', paddingTop: 7 }}>
-        {ins.personalAlignment.detail}
-      </div>
-
-      {/* Community-framed interpretation — no "risk" language */}
-      <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6, fontStyle: 'italic' }}>
-        {ins.interpretation}
+      {/* 3 Dimension tiles */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+        {ins.dimensions.map(dim => <DimensionTile key={dim.name} dim={dim} />)}
       </div>
     </div>
   );

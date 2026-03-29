@@ -1,4 +1,43 @@
 // TypeScript types for Prophis
+
+// ── Race-stratified data extracted from County Health Rankings ───────────────
+export interface CountyRaceData {
+  // Health Outcomes
+  lifeExpOverall:      number | null;
+  lifeExpBlack:        number | null;
+  lifeExpWhite:        number | null;
+  lifeExpHispanic:     number | null;
+  lifeExpAsian:        number | null;
+
+  ypllOverall:         number | null;
+  ypllBlack:           number | null;
+  ypllWhite:           number | null;
+  ypllHispanic:        number | null;
+
+  // Economic Equity
+  incomeOverall:       number | null;
+  incomeBlack:         number | null;
+  incomeWhite:         number | null;
+  incomeHispanic:      number | null;
+  incomeAsian:         number | null;
+
+  childPovertyOverall: number | null;
+  childPovertyBlack:   number | null;
+  childPovertyWhite:   number | null;
+  childPovertyHispanic: number | null;
+
+  // Healthcare Access
+  fluVaxOverall:       number | null;
+  fluVaxBlack:         number | null;
+  fluVaxWhite:         number | null;
+  fluVaxHispanic:      number | null;
+  fluVaxAsian:         number | null;
+
+  prevHospOverall:     number | null;
+  prevHospBlack:       number | null;
+  prevHospWhite:       number | null;
+}
+
 export interface CountyRecord {
   fips: string;
   name: string;
@@ -36,22 +75,37 @@ export interface CountyRecord {
     minority: number;
     housingTransport: number;
   };
+  raceData: CountyRaceData;
 }
 
-export interface MetricInsight {
-  metric:             string;
-  label:              string;
-  unit:               string;
-  userCountyValue:    number;
-  nationalPercentile: number;       // 0–100; higher = worse for negative-health metrics
-  peerCountyAvg:      number;
-  peerCountyRange:    [number, number];
-  nationalAvg:        number;
-  personalAlignment: {
-    alignment: 'higher' | 'lower' | 'similar';
-    detail:    string;
-  };
-  interpretation: string;
+// ── Demographic Health Equity Score types ────────────────────────────────────
+export interface MetricPoint {
+  label:          string;
+  unit:           string;
+  countyValue:    number | null;
+  peerAvg:        number | null;
+  nationalPct:    number;           // 0–100; 100 = best position
+  dataSource:     'race' | 'overall';
+  raceLabel:      string;           // e.g. "Black residents" or "all residents"
+  higherIsBetter: boolean;
+}
+
+export interface DimensionScore {
+  name:    string;
+  weight:  number;
+  score:   number;                  // 0–100
+  metrics: MetricPoint[];
+  summary: string;
+}
+
+export interface DemographicInsight {
+  compositeScore: number;           // 0–100
+  grade:          'A' | 'B' | 'C' | 'D' | 'F';
+  raceLabel:      string;           // "Black residents" or "all residents"
+  countyName:     string;
+  peerCount:      number;
+  dimensions:     [DimensionScore, DimensionScore, DimensionScore];
+  headline:       string;
 }
 
 export interface Intervention {

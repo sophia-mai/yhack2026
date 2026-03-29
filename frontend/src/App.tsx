@@ -27,10 +27,19 @@ function safeNum(val: unknown): number {
   return 0;
 }
 
+// Returns null for missing/zero race-stratified values (0 is nonsensical for LE/income)
+function safeN(val: unknown): number | null {
+  if (typeof val === 'number' && !isNaN(val) && val > 0) return val;
+  return null;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function transformCounty(raw: any): CountyRecord {
   const g = (category: string, field: string): number =>
     safeNum((raw[category] as Record<string, unknown>)?.[field]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const gn = (category: string, field: string): number | null =>
+    safeN((raw[category] as Record<string, unknown>)?.[field]);
 
   const pctPoverty      = g('Children in Poverty', '% Children in Poverty');
   const pctUninsured    = g('Uninsured', '% Uninsured');
@@ -78,6 +87,37 @@ function transformCounty(raw: any): CountyRecord {
       householdComp:    sviHouseholdComp,
       minority:         sviMinority,
       housingTransport: sviHousingTransport,
+    },
+    raceData: {
+      // Health Outcomes
+      lifeExpOverall:       gn('Life Expectancy', 'Life Expectancy'),
+      lifeExpBlack:         gn('Life Expectancy', 'Life Expectancy (Non-Hispanic Black)'),
+      lifeExpWhite:         gn('Life Expectancy', 'Life Expectancy (Non-Hispanic White)'),
+      lifeExpHispanic:      gn('Life Expectancy', 'Life Expectancy (Hispanic (all races))'),
+      lifeExpAsian:         gn('Life Expectancy', 'Life Expectancy (Non-Hispanic Asian)'),
+      ypllOverall:          gn('Premature Death', 'Years of Potential Life Lost Rate'),
+      ypllBlack:            gn('Premature Death', 'YPLL Rate (Non-Hispanic Black)'),
+      ypllWhite:            gn('Premature Death', 'YPLL Rate (Non-Hispanic White)'),
+      ypllHispanic:         gn('Premature Death', 'YPLL Rate (Hispanic (all races))'),
+      // Economic Equity
+      incomeOverall:        gn('Median Household Income', 'Median Household Income'),
+      incomeBlack:          gn('Median Household Income', 'Household Income (Black)'),
+      incomeWhite:          gn('Median Household Income', 'Household Income (White)'),
+      incomeHispanic:       gn('Median Household Income', 'Household Income (Hispanic)'),
+      incomeAsian:          gn('Median Household Income', 'Household Income (Asian)'),
+      childPovertyOverall:  gn('Children in Poverty', '% Children in Poverty'),
+      childPovertyBlack:    gn('Children in Poverty', '% Children in Poverty (Black)'),
+      childPovertyWhite:    gn('Children in Poverty', '% Children in Poverty (White)'),
+      childPovertyHispanic: gn('Children in Poverty', '% Children in Poverty (Hispanic)'),
+      // Healthcare Access
+      fluVaxOverall:        gn('Flu Vaccinations', '% Vaccinated'),
+      fluVaxBlack:          gn('Flu Vaccinations', '% Vaccinated (Black)'),
+      fluVaxWhite:          gn('Flu Vaccinations', '% Vaccinated (White)'),
+      fluVaxHispanic:       gn('Flu Vaccinations', '% Vaccinated (Hispanic)'),
+      fluVaxAsian:          gn('Flu Vaccinations', '% Vaccinated (Asian)'),
+      prevHospOverall:      gn('Preventable Hospital Stays', 'Preventable Hospitalization Rate'),
+      prevHospBlack:        gn('Preventable Hospital Stays', 'Preventable Hosp. Rate (Black)'),
+      prevHospWhite:        gn('Preventable Hospital Stays', 'Preventable Hosp. Rate (White)'),
     },
   };
 }
