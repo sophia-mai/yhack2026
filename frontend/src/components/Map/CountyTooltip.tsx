@@ -10,7 +10,7 @@ interface Props {
   resultsByFips: Map<string, SimulationResponse['results'][0]>;
 }
 
-export default function CountyTooltip({ x, y, county, selectedMetric, mapMode, resultsByFips }: Props) {
+export default function CountyTooltip({ x, y, county, selectedMetric, resultsByFips }: Props) {
   const result = resultsByFips.get(county.fips);
   const val = (county.health as Record<string, number>)[selectedMetric];
   const unit = HEALTH_METRIC_UNITS[selectedMetric] ?? '%';

@@ -176,8 +176,6 @@ export default function USMap() {
       .attr('class', 'state-mesh')
       .attr('d', path);
 
-  // Deliberately omit countyByFipsRef from deps — it's a ref, always current
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topoData, dimensions, getCountyColor, setHoveredFips, setSelectedCounty]);
 
   // Update county colors without full re-render

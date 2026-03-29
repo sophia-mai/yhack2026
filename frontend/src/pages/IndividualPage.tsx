@@ -388,31 +388,56 @@ export default function IndividualPage() {
               </div>
             )}
 
-            {/* Intervention Simulation Panel */}
-            {showInterventionPanel && (
-              <div className="intervention-sim-panel">
-                <div className="intervention-strip-label">SELECT PREVENTIVE INTERVENTIONS TO SIMULATE</div>
-                <div className="intervention-chips">
-                  {INTERVENTIONS.map(intv => (
-                    <button key={intv.id}
-                      className={`intervention-chip${activeInterventions.has(intv.id) ? ' active' : ''}`}
-                      onClick={() => toggleIntervention(intv.id)} title={intv.description}>
-                      {activeInterventions.has(intv.id) ? '✓ ' : ''}{intv.name}
-                    </button>
-                  ))}
-                </div>
-                {activeInterventions.size > 0 && (
-                  <button className="btn-reevaluate" onClick={handleSimulateInterventions} disabled={reloading}>
-                    {reloading
-                      ? <><div className="btn-spinner btn-spinner-sm" />Re-evaluating risk profile…</>
-                      : `↺ Apply ${activeInterventions.size} intervention${activeInterventions.size > 1 ? 's' : ''} & re-evaluate`}
-                  </button>
-                )}
-              </div>
-            )}
+            <div className="timeline-stage-shell">
+              {showInterventionPanel && (
+                <>
+                  <button
+                    type="button"
+                    className="timeline-overlay-backdrop"
+                    aria-label="Close intervention simulation panel"
+                    onClick={() => setShowInterventionPanel(false)}
+                  />
+                  <div className="intervention-sim-panel">
+                    <div className="intervention-panel-topline">
+                      <span className="intervention-strip-label">Prevention Studio</span>
+                      <span className="intervention-panel-count">{activeInterventions.size} selected</span>
+                    </div>
+                    <div className="intervention-panel-title">Model alternate futures without shifting the timeline canvas.</div>
+                    <div className="intervention-panel-subtitle">
+                      Choose interventions, then re-run the patient projection against the current record and county profile.
+                    </div>
+                    <div className="intervention-chips">
+                      {INTERVENTIONS.map(intv => (
+                        <button
+                          key={intv.id}
+                          className={`intervention-chip${activeInterventions.has(intv.id) ? ' active' : ''}`}
+                          onClick={() => toggleIntervention(intv.id)}
+                          title={intv.description}
+                        >
+                          <span className="intervention-chip-check">{activeInterventions.has(intv.id) ? '✓' : '+'}</span>
+                          {intv.name}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="intervention-panel-footer">
+                      <div className="intervention-panel-note">
+                        {activeInterventions.size > 0
+                          ? 'Selected interventions will mark prevented outcomes directly on the future path.'
+                          : 'Pick at least one intervention to compare the projected risk horizon.'}
+                      </div>
+                      <button className="btn-reevaluate" onClick={handleSimulateInterventions} disabled={reloading || activeInterventions.size === 0}>
+                        {reloading
+                          ? <><div className="btn-spinner btn-spinner-sm" />Re-evaluating risk profile…</>
+                          : `↺ Apply ${activeInterventions.size} intervention${activeInterventions.size > 1 ? 's' : ''}`}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
 
-            {/* 2D Horizontal Timeline Canvas */}
-            <HorizontalTimeline events={timeline} />
+              {/* 2D Horizontal Timeline Canvas */}
+              <HorizontalTimeline events={timeline} />
+            </div>
           </>
         )}
       </div>
@@ -421,215 +446,356 @@ export default function IndividualPage() {
 }
 
 // ── 2D Horizontal Draggable Timeline ──────────────────────────────────────
-const NODE_GAP = 220;
-const CANVAS_PADDING = 120;
-const LINE_Y = 320;
-
+function getEventDescriptor(event: TimelineEvent) {
+  if (event.avoided) return 'Prevented outcome';
+  if (event.type === 'present') return 'Current patient state';
+  if (event.type === 'intervention') return 'Intervention milestone';
+  if (event.type === 'warning') return 'Escalation warning';
+  if (event.type === 'predicted' || event.type === 'risk') return 'Projected future event';
+  return 'Recorded history';
+}
 
 function HorizontalTimeline({ events }: { events: TimelineEvent[] }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [offsetX, setOffsetX] = useState(0);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef({ active: false, startX: 0, scrollLeft: 0, moved: false });
+  const dragEndedAtRef = useRef(0);
+  const [wrapperSize, setWrapperSize] = useState({ width: 0, height: 0 });
   const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, offset: 0 });
-  const [hovered, setHovered] = useState<{ event: TimelineEvent; nodeX: number } | null>(null);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
 
-  const canvasWidth = Math.max(900, CANVAS_PADDING * 2 + (events.length - 1) * NODE_GAP);
-
-  // Center the "present" node on initial load
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const presentIdx = events.findIndex(e => e.type === 'present');
-    const idx = presentIdx >= 0 ? presentIdx : Math.floor(events.length / 2);
-    const nodeX = CANVAS_PADDING + idx * NODE_GAP;
-    const containerW = containerRef.current.clientWidth;
-    setOffsetX(containerW / 2 - nodeX);
+  const presentIndex = useMemo(() => {
+    const idx = events.findIndex(e => e.type === 'present');
+    return idx >= 0 ? idx : Math.floor(events.length / 2);
   }, [events]);
+  const focusedIndex = hoveredIndex ?? activeIndex;
+  const focusedEvent = events[focusedIndex] ?? events[presentIndex];
+  const focusedCfg = NODE_CONFIG[focusedEvent?.type as keyof typeof NODE_CONFIG] ?? NODE_CONFIG.past;
+  const focusedIsFuture = focusedEvent?.type === 'risk' || focusedEvent?.type === 'predicted' || focusedEvent?.type === 'warning';
+  const firstAge = events[0]?.age;
+  const lastAge = events[events.length - 1]?.age;
+  const compact = wrapperSize.height > 0 && (wrapperSize.height < 620 || wrapperSize.width < 1280);
+  const layout = compact
+    ? {
+        gap: 310,
+        padding: 220,
+        lineY: 304,
+        previewWidth: 186,
+        previewHeight: 84,
+        previewTop: 122,
+        detailWidth: 292,
+        detailTop: 22,
+        minCanvasHeight: 472,
+        nodeScale: 0.88,
+      }
+    : {
+        gap: 380,
+        padding: 320,
+        lineY: 360,
+        previewWidth: 214,
+        previewHeight: 94,
+        previewTop: 152,
+        detailWidth: 364,
+        detailTop: 28,
+        minCanvasHeight: 680,
+        nodeScale: 1,
+      };
+  const canvasWidth = Math.max(compact ? 1180 : 1400, layout.padding * 2 + Math.max(events.length - 1, 0) * layout.gap);
 
-  const onMouseDown = useCallback((e: React.MouseEvent) => {
+  useEffect(() => {
+    if (!wrapperRef.current) return;
+    const node = wrapperRef.current;
+    const updateSize = () => {
+      setWrapperSize({
+        width: node.clientWidth,
+        height: node.clientHeight,
+      });
+    };
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  const centerEvent = useCallback((index: number, behavior: ScrollBehavior = 'smooth') => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const bounded = Math.max(0, Math.min(events.length - 1, index));
+    const targetX = layout.padding + bounded * layout.gap;
+    const maxLeft = Math.max(0, canvasWidth - viewport.clientWidth);
+    const nextLeft = Math.max(0, Math.min(maxLeft, targetX - viewport.clientWidth / 2));
+    viewport.scrollTo({ left: nextLeft, behavior });
+    setActiveIndex(bounded);
+  }, [canvasWidth, events.length, layout.gap, layout.padding]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => centerEvent(presentIndex, 'auto'));
+    return () => window.cancelAnimationFrame(frame);
+  }, [centerEvent, presentIndex, events]);
+
+  useEffect(() => {
+    const onResize = () => centerEvent(activeIndex, 'auto');
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [activeIndex, centerEvent]);
+
+  const handleScroll = useCallback(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const centerX = viewport.scrollLeft + viewport.clientWidth / 2;
+    const rawIndex = Math.round((centerX - layout.padding) / layout.gap);
+    const nextIndex = Math.max(0, Math.min(events.length - 1, rawIndex));
+    setActiveIndex(nextIndex);
+  }, [events.length, layout.gap, layout.padding]);
+
+  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+    e.preventDefault();
+    viewport.scrollBy({ left: e.deltaY * 1.05, behavior: 'auto' });
+  }, []);
+
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    dragRef.current = {
+      active: true,
+      startX: e.clientX,
+      scrollLeft: viewport.scrollLeft,
+      moved: false,
+    };
+    setHoveredIndex(null);
     setIsDragging(true);
-    setDragStart({ x: e.clientX, offset: offsetX });
-    setHovered(null);
-  }, [offsetX]);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }, []);
 
-  const onMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isDragging) return;
-    const delta = e.clientX - dragStart.x;
-    setOffsetX(dragStart.offset + delta);
-  }, [isDragging, dragStart]);
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current.active) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const delta = e.clientX - dragRef.current.startX;
+    if (Math.abs(delta) > 4) dragRef.current.moved = true;
+    viewport.scrollLeft = dragRef.current.scrollLeft - delta;
+  }, []);
 
-  const onMouseUp = useCallback(() => setIsDragging(false), []);
+  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current.active) return;
+    if (dragRef.current.moved) dragEndedAtRef.current = Date.now();
+    dragRef.current.active = false;
+    setIsDragging(false);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  }, []);
 
-  // Clamp offset to keep timeline within reasonable bounds
-  const clampedOffset = Math.min(
-    CANVAS_PADDING,
-    Math.max(-(canvasWidth - (containerRef.current?.clientWidth ?? 900) + CANVAS_PADDING), offsetX)
-  );
+  const handleEventFocus = useCallback((index: number) => {
+    if (Date.now() - dragEndedAtRef.current < 120) return;
+    centerEvent(index);
+  }, [centerEvent]);
 
   return (
-    <div className="timeline-canvas-wrapper"
-      ref={containerRef}
-      style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
-      onMouseDown={onMouseDown}
-      onMouseMove={onMouseMove}
-      onMouseUp={onMouseUp}
-      onMouseLeave={onMouseUp}>
-
-      {/* Dot grid background */}
-      <svg className="timeline-grid timeline-grid-animated" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
-        <defs>
-          <pattern id="dot-grid" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
-            <circle cx="2" cy="2" r="1.5" fill="rgba(255,255,255,0.08)" />
-          </pattern>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#dot-grid)" />
-      </svg>
-
-      {/* Era labels — fixed, not scrolling */}
-      <div className="era-labels">
-        {['◀  HISTORY', 'NOW', 'RISK PROFILE  ▶'].map((label, i) => (
-          <div key={label} className={`era-label ${i === 1 ? 'era-label-now' : i === 2 ? 'era-label-future' : ''}`}>{label}</div>
-        ))}
+    <div ref={wrapperRef} className={`timeline-canvas-wrapper${compact ? ' compact' : ''}`}>
+      <div className="timeline-stage-hud">
+        <div className="timeline-stage-copy">
+          <div className="timeline-stage-kicker">Patient trajectory</div>
+          <div className="timeline-stage-title">
+            {events.length} key moments
+            {typeof firstAge === 'number' && typeof lastAge === 'number' ? ` from age ${firstAge} to ${lastAge}` : ''}
+          </div>
+          <div className="timeline-stage-hint">Drag, scroll, or use arrow keys to move through the story.</div>
+        </div>
       </div>
 
-      {/* Scrollable canvas */}
-      <div className="timeline-inner-canvas"
-        style={{ transform: `translateX(${clampedOffset}px)`, width: canvasWidth }}>
-
-        {/* Gradient glowing line */}
-        <svg style={{ position: 'absolute', top: LINE_Y - 4, left: 0, width: canvasWidth, height: 10, pointerEvents: 'none', filter: 'drop-shadow(0 0 10px rgba(0, 212, 170, 0.4))' }}>
-          <defs>
-            <linearGradient id="line-grad" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2={canvasWidth} y2="0">
-              <stop offset="0%" stopColor="#3D4A6E" stopOpacity="0.4" />
-              <stop offset="30%" stopColor="#5B6A90" stopOpacity="0.9" />
-              <stop offset="50%" stopColor="#00D4AA" stopOpacity="1" />
-              <stop offset="75%" stopColor="#FF9B3D" stopOpacity="1" />
-              <stop offset="100%" stopColor="#FF5757" stopOpacity="0.7" />
-            </linearGradient>
-          </defs>
-          <line x1="0" y1="4.5" x2={canvasWidth} y2="4.5" stroke="url(#line-grad)" strokeWidth="3" />
-        </svg>
-
-        {/* Nodes */}
-        {events.map((ev, i) => {
-          const x = CANVAS_PADDING + i * NODE_GAP;
-          const isHovered = hovered?.event === ev;
-          const isWarning = ev.severity === 'critical' || ev.type === 'warning';
-          const isFuture = ev.type === 'risk' || ev.type === 'predicted' || ev.type === 'warning';
-          const cfg = NODE_CONFIG[ev.type as keyof typeof NODE_CONFIG] ?? NODE_CONFIG.past;
-          const size = SEVERITY_SIZE[ev.severity] ?? 32;
-
-          return (
-            <div key={`${ev.age}-${i}`}
-              className="timeline-node-wrap"
-              style={{ left: x - size / 2, top: LINE_Y - size / 2 }}
-              onMouseEnter={() => !isDragging && setHovered({ event: ev, nodeX: x })}
-              onMouseLeave={() => setHovered(null)}>
-
-              {/* Avoided ribbon */}
-              {ev.avoided && (
-                <div className="node-avoided-ribbon">AVOIDED</div>
-              )}
-
-              {/* Triangle for critical/warning, circle otherwise */}
-              {isWarning && isFuture ? (
-                <div className="node-triangle"
-                  style={{
-                    width: size + 14, height: size + 14,
-                    filter: isHovered ? `drop-shadow(0 0 24px ${cfg.glow}) drop-shadow(0 0 8px ${cfg.border})` : `drop-shadow(0 0 8px ${cfg.glow})`,
-                    opacity: ev.avoided ? 0.3 : 1,
-                  }}>
-                  <svg viewBox="0 0 52 52" style={{ width: '100%', height: '100%', backdropFilter: 'blur(8px)' }}>
-                    <polygon points="26,4 50,48 2,48"
-                      fill={ev.avoided ? 'rgba(0,212,170,0.1)' : `url(#triangle-grad-${i})`}
-                      stroke={ev.avoided ? '#00D4AA' : cfg.border}
-                      strokeWidth="2.5" />
-                    <defs>
-                      <linearGradient id={`triangle-grad-${i}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={cfg.fill} />
-                        <stop offset="100%" stopColor="rgba(0,0,0,0.6)" />
-                      </linearGradient>
-                    </defs>
-                    <text x="26" y="38" textAnchor="middle" fill={ev.avoided ? '#00D4AA' : cfg.border}
-                      fontSize="20" fontWeight="bold">!</text>
-                  </svg>
-                </div>
-              ) : (
-                <div className={`node-circle${isHovered ? ' node-circle-hovered' : ''}${ev.type === 'present' ? ' node-present' : ''}`}
-                  style={{
-                    width: size, height: size,
-                    background: ev.avoided ? 'rgba(0,212,170,0.1)' : `url(#circle-grad-${i})`,
-                    backdropFilter: 'blur(8px)',
-                    border: `2px solid ${ev.avoided ? '#00D4AA' : cfg.border}`,
-                    boxShadow: isHovered ? `0 0 24px ${ev.avoided ? 'rgba(0,212,170,0.6)' : cfg.glow}, inset 0 2px 4px rgba(255,255,255,0.2)` : ev.type === 'present' ? `0 0 18px ${cfg.glow}` : `0 4px 8px rgba(0,0,0,0.5)`,
-                    opacity: ev.avoided ? 0.5 : 1,
-                  }}>
-                    <svg style={{ position: 'absolute', width: 0, height: 0 }}>
-                      <defs>
-                        <linearGradient id={`circle-grad-${i}`} x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor={cfg.fill} stopOpacity="0.9" />
-                          <stop offset="100%" stopColor="rgba(0,0,0,0.6)" />
-                        </linearGradient>
-                      </defs>
-                    </svg>
-                  {ev.type === 'present' && <div className="node-pulse-ring node-pulse-ring-1" style={{ borderColor: cfg.border }} />}
-                  {ev.type === 'present' && <div className="node-pulse-ring node-pulse-ring-2" style={{ borderColor: cfg.border }} />}
-                </div>
-              )}
-
-              {/* Age label below */}
-              <div className="node-age-label" style={{ color: cfg.border }}>
-                {ev.avoided ? '~~' : ''}Age {ev.age}
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Hover tooltip — renders inside scrolling container so position is correct */}
-        {hovered && (
-          <TimelineTooltip event={hovered.event} nodeX={hovered.nodeX} />
+      <div
+        className="timeline-focus-card"
+        style={{
+          width: layout.detailWidth,
+          top: layout.detailTop,
+          borderColor: focusedEvent?.avoided ? 'rgba(0,212,170,0.34)' : `${focusedCfg.border}55`,
+          boxShadow: `0 20px 54px rgba(0,0,0,0.34), 0 0 24px ${focusedCfg.glow}`,
+          background: focusedEvent?.avoided
+            ? 'linear-gradient(180deg, rgba(5, 22, 24, 0.94), rgba(4, 14, 22, 0.82))'
+            : `linear-gradient(180deg, rgba(7, 12, 24, 0.95), ${focusedCfg.fill}30)`,
+        }}
+      >
+        <div className="timeline-focus-row">
+          <span
+            className="timeline-focus-badge"
+            style={{
+              color: focusedEvent?.avoided ? '#86f4dd' : focusedCfg.border,
+              borderColor: focusedEvent?.avoided ? 'rgba(0,212,170,0.26)' : `${focusedCfg.border}33`,
+            }}
+          >
+            {getEventDescriptor(focusedEvent)}
+          </span>
+          <span className="timeline-focus-year">{focusedEvent?.year}</span>
+        </div>
+        <div className="timeline-focus-title">{focusedEvent?.title}</div>
+        <div className="timeline-focus-desc">{focusedEvent?.description}</div>
+        <div className="timeline-focus-footer">
+          <span className="timeline-focus-age">Age {focusedEvent?.age}</span>
+          <span className={`timeline-card-severity timeline-card-severity-${focusedEvent?.severity}`}>{focusedEvent?.severity}</span>
+        </div>
+        {focusedIsFuture && !focusedEvent?.avoided && (
+          <div className="timeline-focus-note">Projected from the patient profile, prior history, and similarity model.</div>
         )}
       </div>
 
-      {/* Scroll hint */}
-      <div className="timeline-scroll-hint">← drag to explore →</div>
-    </div>
-  );
-}
-
-// ── Tooltip Card ───────────────────────────────────────────────────────────
-function TimelineTooltip({ event: ev, nodeX }: { event: TimelineEvent; nodeX: number }) {
-  const cfg = NODE_CONFIG[ev.type as keyof typeof NODE_CONFIG] ?? NODE_CONFIG.past;
-  const isFuture = ev.type === 'risk' || ev.type === 'predicted' || ev.type === 'warning';
-
-  return (
-    <div className="timeline-tooltip"
-      style={{
-        left: nodeX - 160,
-        top: LINE_Y - 250,
-        borderColor: ev.avoided ? '#00D4AA' : cfg.border,
-        boxShadow: `0 24px 48px rgba(0,0,0,0.8), 0 0 32px ${cfg.glow}`,
-      }}>
-      <div className="tooltip-glass-surface" />
-      <div className="tooltip-content-wrapper">
-        <div className="tooltip-header">
-        <span className="tooltip-type-badge"
-          style={{ color: ev.avoided ? '#00D4AA' : cfg.border, borderColor: ev.avoided ? 'rgba(0,212,170,0.3)' : cfg.border + '50' }}>
-          {ev.avoided ? 'AVOIDED' : cfg.label}
-        </span>
-        <span className="tooltip-age" style={{ color: cfg.border }}>Age {ev.age} · {ev.year}</span>
+      <div className="timeline-nav timeline-nav-left">
+        <button type="button" className="timeline-nav-btn" onClick={() => centerEvent(activeIndex - 1)} aria-label="Scroll timeline left">
+          ←
+        </button>
       </div>
-      <div className="tooltip-title" style={{ color: ev.avoided ? 'var(--text-secondary)' : 'var(--text-primary)',
-        textDecoration: ev.avoided ? 'line-through' : 'none' }}>
-        {ev.title}
+      <div className="timeline-nav timeline-nav-right">
+        <button type="button" className="timeline-nav-btn" onClick={() => centerEvent(activeIndex + 1)} aria-label="Scroll timeline right">
+          →
+        </button>
       </div>
-      <div className="tooltip-desc">{ev.description}</div>
-      {isFuture && !ev.avoided && (
-        <div className="tooltip-risk-note">
-          📊 Based on statistical comparison with similar patient profiles in this demographic
+
+      <div
+        ref={viewportRef}
+        className={`timeline-viewport${isDragging ? ' dragging' : ''}`}
+        onScroll={handleScroll}
+        onWheel={handleWheel}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onPointerLeave={handlePointerUp}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowRight') { e.preventDefault(); centerEvent(activeIndex + 1); }
+          if (e.key === 'ArrowLeft') { e.preventDefault(); centerEvent(activeIndex - 1); }
+        }}
+        tabIndex={0}
+        aria-label="Patient health timeline"
+      >
+        <div className="timeline-inner-canvas" style={{ width: canvasWidth, minHeight: layout.minCanvasHeight }}>
+          <div className="timeline-ambient timeline-ambient-left" />
+          <div className="timeline-ambient timeline-ambient-center" />
+          <div className="timeline-ambient timeline-ambient-right" />
+
+          <div className="timeline-baseline" />
+          <div className="timeline-baseline-glow" />
+
+          {events.map((ev, i) => {
+            const x = layout.padding + i * layout.gap;
+            const cfg = NODE_CONFIG[ev.type as keyof typeof NODE_CONFIG] ?? NODE_CONFIG.past;
+            const size = Math.round((SEVERITY_SIZE[ev.severity] ?? 32) * layout.nodeScale);
+            const isFuture = ev.type === 'risk' || ev.type === 'predicted' || ev.type === 'warning';
+            const isWarning = ev.severity === 'critical' || ev.type === 'warning';
+            const isActive = focusedIndex === i;
+            const previewTop = layout.previewTop + (compact ? [0, 10, 18][i % 3] : [0, 14, 24][i % 3]);
+            const connectorTop = previewTop + layout.previewHeight - 8;
+            const connectorHeight = Math.max(18, layout.lineY - connectorTop - Math.floor(size / 2) - 8);
+
+            return (
+              <div key={`${ev.age}-${i}`}>
+                <button
+                  type="button"
+                  className={`timeline-preview-card${isActive ? ' active' : ''}${ev.avoided ? ' avoided' : ''}${ev.type === 'present' ? ' present' : ''}`}
+                  style={{
+                    left: x - layout.previewWidth / 2,
+                    top: previewTop,
+                    width: layout.previewWidth,
+                    height: layout.previewHeight,
+                    borderColor: ev.avoided ? 'rgba(0,212,170,0.36)' : `${cfg.border}55`,
+                    boxShadow: isActive
+                      ? `0 18px 42px rgba(0,0,0,0.42), 0 0 20px ${cfg.glow}`
+                      : '0 12px 28px rgba(0,0,0,0.24)',
+                    background: ev.avoided
+                      ? 'linear-gradient(180deg, rgba(5, 22, 24, 0.96), rgba(4, 14, 22, 0.78))'
+                      : `linear-gradient(180deg, rgba(5, 12, 24, 0.96), ${cfg.fill}33)`,
+                  }}
+                  onMouseEnter={() => !isDragging && setHoveredIndex(i)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                  onFocus={() => setHoveredIndex(i)}
+                  onBlur={() => setHoveredIndex(null)}
+                  onClick={() => handleEventFocus(i)}
+                >
+                  <div className="timeline-preview-row">
+                    <span
+                      className="timeline-preview-badge"
+                      style={{
+                        color: ev.avoided ? '#86f4dd' : cfg.border,
+                        borderColor: ev.avoided ? 'rgba(0,212,170,0.28)' : `${cfg.border}33`,
+                      }}
+                    >
+                      {ev.avoided ? 'Avoided' : cfg.label}
+                    </span>
+                    <span className="timeline-preview-year">{ev.year}</span>
+                  </div>
+                  <div className="timeline-preview-title">{ev.title}</div>
+                </button>
+
+                <div
+                  className={`timeline-preview-connector${isActive ? ' active' : ''}`}
+                  style={{
+                    left: x,
+                    top: connectorTop,
+                    height: connectorHeight,
+                    background: `linear-gradient(180deg, ${cfg.border}55, rgba(255,255,255,0.02))`,
+                  }}
+                />
+
+                <div
+                  className={`timeline-node-wrap${isActive ? ' active' : ''}`}
+                  style={{ left: x - size / 2, top: layout.lineY - size / 2 }}
+                >
+                  {ev.avoided && <div className="node-avoided-ribbon">Avoided</div>}
+                  <div
+                    className="timeline-node-halo"
+                    style={{ background: `radial-gradient(circle, ${cfg.glow} 0%, transparent 72%)` }}
+                  />
+                  {isWarning && isFuture ? (
+                    <div
+                      className="node-triangle"
+                      style={{
+                        width: size + 18,
+                        height: size + 18,
+                        filter: isActive ? `drop-shadow(0 0 18px ${cfg.glow})` : `drop-shadow(0 0 8px ${cfg.glow})`,
+                        opacity: ev.avoided ? 0.4 : 1,
+                      }}
+                    >
+                      <svg viewBox="0 0 52 52" style={{ width: '100%', height: '100%' }}>
+                        <polygon
+                          points="26,4 50,48 2,48"
+                          fill={ev.avoided ? 'rgba(0,212,170,0.12)' : cfg.fill}
+                          stroke={ev.avoided ? '#00D4AA' : cfg.border}
+                          strokeWidth="2.5"
+                        />
+                        <text x="26" y="38" textAnchor="middle" fill={ev.avoided ? '#00D4AA' : cfg.border} fontSize="20" fontWeight="bold">!</text>
+                      </svg>
+                    </div>
+                  ) : (
+                    <div
+                      className={`node-circle${isActive ? ' node-circle-hovered' : ''}${ev.type === 'present' ? ' node-present' : ''}`}
+                      style={{
+                        width: size,
+                        height: size,
+                        background: ev.avoided ? 'rgba(0,212,170,0.12)' : `linear-gradient(180deg, ${cfg.fill}, rgba(6,11,24,0.9))`,
+                        border: `2px solid ${ev.avoided ? '#00D4AA' : cfg.border}`,
+                        boxShadow: isActive
+                          ? `0 0 22px ${ev.avoided ? 'rgba(0,212,170,0.5)' : cfg.glow}, inset 0 1px 0 rgba(255,255,255,0.18)`
+                          : `0 10px 20px rgba(0,0,0,0.4), 0 0 12px ${cfg.glow}`,
+                        opacity: ev.avoided ? 0.58 : 1,
+                      }}
+                    >
+                      {ev.type === 'present' && <div className="node-pulse-ring node-pulse-ring-1" style={{ borderColor: cfg.border }} />}
+                      {ev.type === 'present' && <div className="node-pulse-ring node-pulse-ring-2" style={{ borderColor: cfg.border }} />}
+                    </div>
+                  )}
+                  <div className="node-age-label" style={{ color: ev.avoided ? '#86f4dd' : cfg.border }}>
+                    Age {ev.age}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
-      )}
       </div>
-      <div className="tooltip-tail" style={{ borderTopColor: ev.avoided ? '#00D4AA' : cfg.border }} />
     </div>
   );
 }
