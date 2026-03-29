@@ -301,7 +301,7 @@ export default function IndividualPage() {
 
         <div className="patient-form-bottom">
           <button className="btn-generate" onClick={handleGenerate} disabled={loading}>
-            {loading ? <><div className="btn-spinner" />Analyzing with Claude AI…</> : <>✦ Generate Health Timeline</>}
+            {loading ? <><div className="btn-spinner" />Analyzing with Lava…</> : <>✦ Generate Health Timeline</>}
           </button>
         </div>
       </div>
@@ -313,7 +313,7 @@ export default function IndividualPage() {
             <div className="timeline-empty-icon">⏱</div>
             <div className="timeline-empty-title">Your patient timeline will appear here</div>
             <div className="timeline-empty-sub">
-              Fill in the profile and click "Generate Health Timeline" — Claude AI will analyze the records
+              Fill in the profile and click "Generate Health Timeline" — Lava will analyze the records
               and map a personalized chronological timeline with risk similarity analysis.
             </div>
             <button className="btn-mock-large" onClick={() => { loadMock(); }}>
@@ -326,7 +326,7 @@ export default function IndividualPage() {
           <div className="timeline-loading">
             <div className="loading-orb" />
             <div className="loading-title">Analyzing patient data…</div>
-            <div className="loading-sub">Claude AI is reading the medical records and building a personalized health timeline</div>
+            <div className="loading-sub">Lava is reading the medical records and building a personalized health timeline</div>
           </div>
         )}
 

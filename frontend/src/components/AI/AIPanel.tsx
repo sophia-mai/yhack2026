@@ -69,7 +69,7 @@ export default function AIPanel() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <div className="panel-title">🤖 AI Policy Analyst</div>
-            <div className="panel-subtitle">Claude 4.6 Sonnet · Simulation insights</div>
+            <div className="panel-subtitle">Lava · Simulation insights</div>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             {hasLoaded && (
@@ -98,7 +98,7 @@ export default function AIPanel() {
               AI Summary Pending
             </div>
             <div style={{ fontSize: 12, lineHeight: 1.6 }}>
-              Run a simulation to get Claude 4.6 Sonnet powered policy insights, equity analysis, and recommendations.
+              Run a simulation to get Lava-powered policy insights, equity analysis, and recommendations.
             </div>
           </div>
         )}

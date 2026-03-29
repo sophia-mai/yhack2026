@@ -18,7 +18,7 @@ function getLavaSecret(): string {
   return secret;
 }
 
-// POST /api/ai/summarize — streaming summary via Claude + Lava
+// POST /api/ai/summarize — streaming summary via Lava
 router.post('/summarize', async (req, res) => {
   try {
     const { simulationSummary, interventions, objective, countyCount } = req.body;
@@ -48,7 +48,7 @@ router.post('/summarize', async (req, res) => {
 
     if (!claudeRes.ok || !claudeRes.body) {
       const errText = await claudeRes.text();
-      res.write(`data: ${JSON.stringify({ error: `Claude API error: ${claudeRes.status} ${errText}` })}\n\n`);
+      res.write(`data: ${JSON.stringify({ error: `Lava API error: ${claudeRes.status} ${errText}` })}\n\n`);
       res.end();
       return;
     }
@@ -71,7 +71,7 @@ router.post('/summarize', async (req, res) => {
           if (raw === '[DONE]' || !raw) continue;
           try {
             const event = JSON.parse(raw);
-            // Claude streaming events: content_block_delta carries text
+            // Lava-forwarded streaming events: content_block_delta carries text
             if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
               const text = event.delta.text ?? '';
               if (text) res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
@@ -87,7 +87,7 @@ router.post('/summarize', async (req, res) => {
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     res.end();
   } catch (err: unknown) {
-    console.error('Claude/Lava error:', err);
+    console.error('Lava error:', err);
     res.write(`data: ${JSON.stringify({ error: String(err) })}\n\n`);
     res.end();
   }
@@ -196,7 +196,7 @@ Return JSON array only.`;
 
     if (!claudeRes.ok) {
       const err = await claudeRes.text();
-      return res.status(claudeRes.status).json({ error: `Claude API error: ${claudeRes.status} ${err}` });
+      return res.status(claudeRes.status).json({ error: `Lava API error: ${claudeRes.status} ${err}` });
     }
 
     const data = await claudeRes.json() as { content: Array<{ text: string }> };
@@ -209,7 +209,7 @@ Return JSON array only.`;
     try {
       timeline = JSON.parse(cleaned);
     } catch {
-      // Partial recovery: Claude was cut off mid-JSON — salvage complete objects
+      // Partial recovery: response was cut off mid-JSON — salvage complete objects
       // Find the last complete event closing brace before the truncation
       const lastComplete = cleaned.lastIndexOf('},');
       const lastCompleteAlt = cleaned.lastIndexOf('}\n]');
@@ -220,10 +220,10 @@ Return JSON array only.`;
           timeline = JSON.parse(recovered);
           console.warn(`patient-timeline: JSON was truncated, recovered ${(timeline as unknown[]).length} events`);
         } catch {
-          return res.status(500).json({ error: 'Failed to parse Claude timeline response', raw: rawText });
+          return res.status(500).json({ error: 'Failed to parse Lava timeline response', raw: rawText });
         }
       } else {
-        return res.status(500).json({ error: 'Failed to parse Claude timeline response', raw: rawText });
+        return res.status(500).json({ error: 'Failed to parse Lava timeline response', raw: rawText });
       }
     }
 
@@ -308,4 +308,3 @@ router.post('/similarity-score', (req, res) => {
 });
 
 export default router;
-
