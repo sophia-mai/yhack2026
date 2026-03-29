@@ -158,7 +158,12 @@ export function getCountyData(): CountyRecord[] {
   if (!_countyData) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const raw: any[] = JSON.parse(readFileSync(resolveDataPath('county_health_data_full.json'), 'utf-8'));
-    _countyData = raw.map(transformCounty);
+    // Drop Connecticut's legacy county stubs (09001–09015): they lack demographics/behavioral
+    // metrics because CT replaced county governance with planning regions in 2022. The planning
+    // region records (09110–09190) carry the complete data and are kept.
+    _countyData = raw
+      .filter((r: any) => !(r.state === 'Connecticut' && parseInt(r.fips) < 9100))
+      .map(transformCounty);
   }
   return _countyData!;
 }

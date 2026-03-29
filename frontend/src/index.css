@@ -899,7 +899,9 @@ select:focus {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  /* Side nav is 76px wide (left: 16px + width: 60px). Adding matching padding-left
+     shifts the flex centering axis so the modal lands on the visual content center. */
+  padding: 24px 24px 24px 100px;
 }
 
 .modal {

@@ -132,7 +132,15 @@ export default function App() {
     fetch('/data/county_health_data_full.json')
       .then(r => r.json())
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .then((data: any[]) => setCounties(data.map(transformCounty)))
+      .then((data: any[]) => setCounties(
+        data
+          // Connecticut replaced county governance with planning regions in 2022.
+          // The CHR dataset includes both the legacy county stubs (09001–09015, which
+          // lack demographics/behavioral metrics) and the new planning regions
+          // (09110–09190, which have full data). Drop the stubs to avoid zero-filled records.
+          .filter((raw: any) => !(raw.state === 'Connecticut' && parseInt(raw.fips) < 9100))
+          .map(transformCounty)
+      ))
       .catch(console.error);
   }, [setCounties]);
 
