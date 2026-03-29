@@ -61,6 +61,23 @@ function formatMetricValue(metric: HealthMetric, value: number | null) {
   return `${value.toFixed(1)}${unit}`;
 }
 
+function formatMetricDelta(metric: HealthMetric, value: number | null) {
+  if (value === null || Number.isNaN(value)) return '—';
+  const unit = HEALTH_METRIC_UNITS[metric] ?? '%';
+  const sign = value > 0 ? '+' : value < 0 ? '−' : '';
+  const absolute = Math.abs(value);
+  if (unit === '/100k') return `${sign}${Math.round(absolute).toLocaleString()} ${unit}`;
+  return `${sign}${absolute.toFixed(1)}${unit}`;
+}
+
+function getPercentileSummary(percentile: number | null) {
+  if (percentile === null) return 'National rank unavailable.';
+  if (percentile >= 90) return `This county is above ${percentile}% of counties on this measure.`;
+  if (percentile >= 70) return `This county sits in the upper tier nationally at the ${percentile}th percentile.`;
+  if (percentile >= 40) return `This county is near the middle of the national distribution.`;
+  return `This county is below most counties nationally at the ${percentile}th percentile.`;
+}
+
 function getComparableCounties(target: CountyRecord, counties: CountyRecord[]) {
   const distance = (county: CountyRecord) => {
     const demo = county.demographics;
@@ -144,6 +161,24 @@ export default function MapPage() {
     ? (matchedCounty.health as Record<string, number>)[selectedMetric] ?? null
     : null;
   const comparableCounties = activeCounty ? getComparableCounties(activeCounty, counties) : [];
+  const stateDelta = activeMetricValue !== null && stateAverage !== null
+    ? activeMetricValue - stateAverage
+    : null;
+  const nationalDelta = activeMetricValue !== null && nationalAverage !== null
+    ? activeMetricValue - nationalAverage
+    : null;
+  const matchedCountyDelta = activeMetricValue !== null && matchedMetricValue !== null
+    ? activeMetricValue - matchedMetricValue
+    : null;
+  const isActiveCountyMatched = !!activeCounty && !!matchedCounty && activeCounty.fips === matchedCounty.fips;
+  const focusSummary = matchedCounty
+    ? `Track ${selectedMetricLabel.toLowerCase()} around ${matchedCounty.name}, ${matchedCounty.state} using the ${activeMode.label.toLowerCase()} lens.`
+    : `Track ${selectedMetricLabel.toLowerCase()} across counties using the ${activeMode.label.toLowerCase()} lens.`;
+  const benchmarkCopy = activeCounty
+    ? isActiveCountyMatched
+      ? `This is the patient anchor county. Use it as the baseline for every county comparison.`
+      : getPercentileSummary(percentile)
+    : null;
 
   return (
     <div className="map-page-overlays">
@@ -156,6 +191,24 @@ export default function MapPage() {
         </div>
 
         <div className="panel-body">
+          <div className="population-panel-card population-focus-card">
+            <div className="section-label">Current View</div>
+            <div className="population-focus-header">
+              <div>
+                <div className="population-focus-metric">{selectedMetricLabel}</div>
+                <div className="population-focus-copy">{activeMode.label}</div>
+              </div>
+              {matchedCounty && (
+                <span className="population-chip population-focus-chip">
+                  Anchor linked
+                </span>
+              )}
+            </div>
+            <div className="population-explainer-copy">
+              {focusSummary}
+            </div>
+          </div>
+
           <div className="population-panel-card">
             <div className="section-label">Patient Anchor</div>
             {patientContext ? (
@@ -200,6 +253,7 @@ export default function MapPage() {
                   key={metric}
                   className={`population-selector-btn${selectedMetric === metric ? ' active' : ''}`}
                   onClick={() => setSelectedMetric(metric)}
+                  aria-pressed={selectedMetric === metric}
                 >
                   <span>{HEALTH_METRIC_LABELS[metric]}</span>
                   <small>{HEALTH_METRIC_UNITS[metric]}</small>
@@ -210,34 +264,28 @@ export default function MapPage() {
 
           <div className="population-panel-card">
             <div className="section-label">Map Lens</div>
-            <div className="population-mode-list">
+            <div className="population-mode-pill-row">
               {MAP_MODE_OPTIONS.map(mode => (
                 <button
                   key={mode.id}
-                  className={`population-mode-btn${mapMode === mode.id ? ' active' : ''}`}
+                  className={`population-mode-pill${mapMode === mode.id ? ' active' : ''}`}
                   onClick={() => setMapMode(mode.id)}
+                  aria-pressed={mapMode === mode.id}
                 >
-                  <span>{mode.label}</span>
-                  <small>{mode.description}</small>
+                  {mode.label}
                 </button>
               ))}
             </div>
             <div className="population-lens-guide">
               <div className="population-lens-guide-label">Use this lens when</div>
               <div className="population-lens-guide-copy">
-                {activeMode.useCase(selectedMetricLabel)}
+                {activeMode.description}
               </div>
               <div className="population-lens-guide-rule">
+                <span>{activeMode.useCase(selectedMetricLabel)}</span>
                 <span>Read colors as</span>
                 <strong>{activeMode.interpretation}</strong>
               </div>
-            </div>
-          </div>
-
-          <div className="population-panel-card">
-            <div className="section-label">How to Use This</div>
-            <div className="population-explainer-copy">
-              Pick a metric, scan for hotspots, click into a county, then switch lenses to test whether the pattern is mostly about disease burden, economic pressure, or broader community vulnerability.
             </div>
           </div>
         </div>
@@ -260,29 +308,32 @@ export default function MapPage() {
             {activeCounty ? (
               <>
                 <div className="population-panel-card">
-                  <div className="section-label">County Snapshot</div>
-                  <div className="population-metric-grid">
-                    <div className="metric-tile">
-                      <div className="metric-tile-value">{formatMetricValue(selectedMetric, activeMetricValue)}</div>
-                      <div className="metric-tile-label">{HEALTH_METRIC_LABELS[selectedMetric]}</div>
+                  <div className="section-label">Benchmark Read</div>
+                  <div className="population-benchmark-hero">
+                    <div className="population-benchmark-value">
+                      {formatMetricValue(selectedMetric, activeMetricValue)}
                     </div>
-                    <div className="metric-tile">
-                      <div className="metric-tile-value">{formatMetricValue(selectedMetric, stateAverage)}</div>
-                      <div className="metric-tile-label">{activeCounty.state} average</div>
+                    <div className="population-benchmark-label">{HEALTH_METRIC_LABELS[selectedMetric]}</div>
+                    <div className="population-benchmark-copy">{benchmarkCopy}</div>
+                  </div>
+                  <div className="population-bridge-list">
+                    <div className="population-bridge-row">
+                      <span>Vs {activeCounty.state} average</span>
+                      <strong>{formatMetricDelta(selectedMetric, stateDelta)}</strong>
                     </div>
-                    <div className="metric-tile">
-                      <div className="metric-tile-value">{formatMetricValue(selectedMetric, nationalAverage)}</div>
-                      <div className="metric-tile-label">National average</div>
+                    <div className="population-bridge-row">
+                      <span>Vs national average</span>
+                      <strong>{formatMetricDelta(selectedMetric, nationalDelta)}</strong>
                     </div>
-                    <div className="metric-tile">
-                      <div className="metric-tile-value">{percentile !== null ? `${percentile}th` : '—'}</div>
-                      <div className="metric-tile-label">National percentile</div>
+                    <div className="population-bridge-row">
+                      <span>National percentile</span>
+                      <strong>{percentile !== null ? `${percentile}th` : '—'}</strong>
                     </div>
                   </div>
                 </div>
 
                 <div className="population-panel-card">
-                  <div className="section-label">Patient-to-Population Bridge</div>
+                  <div className="section-label">Patient Connection</div>
                   <div className="population-bridge-list">
                     <div className="population-bridge-row">
                       <span>Matched county</span>
@@ -293,18 +344,44 @@ export default function MapPage() {
                     <div className="population-bridge-row">
                       <span>Selected metric gap vs matched county</span>
                       <strong>
-                        {activeMetricValue !== null && matchedMetricValue !== null
-                          ? `${(activeMetricValue - matchedMetricValue >= 0 ? '+' : '')}${(activeMetricValue - matchedMetricValue).toFixed(1)}${HEALTH_METRIC_UNITS[selectedMetric]}`
-                          : '—'}
+                        {formatMetricDelta(selectedMetric, matchedCountyDelta)}
                       </strong>
                     </div>
                     <div className="population-bridge-row">
-                      <span>Poverty rate</span>
-                      <strong>{activeCounty.demographics.pctPoverty.toFixed(1)}%</strong>
+                      <span>County role</span>
+                      <strong>{isActiveCountyMatched ? 'Patient anchor' : 'Comparison county'}</strong>
                     </div>
-                    <div className="population-bridge-row">
-                      <span>Social vulnerability index</span>
-                      <strong>{activeCounty.svi.overall.toFixed(3)}</strong>
+                  </div>
+                  {matchedCounty && !isActiveCountyMatched && (
+                    <button
+                      className="population-action-btn"
+                      onClick={() => setSelectedCounty(matchedCounty)}
+                    >
+                      Jump to patient anchor
+                    </button>
+                  )}
+                </div>
+
+                <div className="population-panel-card">
+                  <div className="section-label">Community Conditions</div>
+                  <div className="population-context-grid">
+                    <div className="population-context-stat">
+                      <div className="population-context-value">{activeCounty.demographics.pctPoverty.toFixed(1)}%</div>
+                      <div className="population-context-label">Below poverty line</div>
+                    </div>
+                    <div className="population-context-stat">
+                      <div className="population-context-value">{activeCounty.demographics.pctUninsured.toFixed(1)}%</div>
+                      <div className="population-context-label">Uninsured</div>
+                    </div>
+                    <div className="population-context-stat">
+                      <div className="population-context-value">{activeCounty.demographics.pctElderly.toFixed(1)}%</div>
+                      <div className="population-context-label">Age 65+</div>
+                    </div>
+                    <div className="population-context-stat">
+                      <div className="population-context-value population-context-value-accent">
+                        {activeCounty.svi.overall.toFixed(3)}
+                      </div>
+                      <div className="population-context-label">SVI score</div>
                     </div>
                   </div>
                 </div>
